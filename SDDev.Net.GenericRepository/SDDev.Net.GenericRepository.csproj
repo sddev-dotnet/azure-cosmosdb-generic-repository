@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LINQKit.Core" Version="1.1.15" />
+    <PackageReference Include="Microsoft.Azure.DocumentDB" Version="1.22.0" />
+    <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="1.9.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="2.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.0.8.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SDDev.Net.GenericRepository.Contracts\SDDev.Net.GenericRepository.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
