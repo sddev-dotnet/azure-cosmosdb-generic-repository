@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using SDDev.Net.GenericRepository.Contracts.BaseEntity;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Linq.Dynamic.Core;
