@@ -42,9 +42,16 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
+        /// <summary>
+        /// Query with a predicate you built using PredicateBuilder
+        /// </summary>
+        /// <param name="predicate"></param>
+        /// <param name="model"></param>
+        /// <returns></returns>
         public override async Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model)
         {
             var feedoptions = new FeedOptions() { MaxItemCount = model.PageSize };
+            feedoptions.RequestContinuation = model.ContinuationToken;
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
             var result = Client.CreateDocumentQuery<TModel>(UriFactory.CreateDocumentCollectionUri(DatabaseName, CollectionName), feedoptions)
                 .Where(predicate)
@@ -60,9 +67,16 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
         }
 
+        /// <summary>
+        /// Build a query string using Dynamic Linq 
+        /// </summary>
+        /// <param name="query"></param>
+        /// <param name="model"></param>
+        /// <returns></returns>
         public async override Task<ISearchResult<TModel>> Get(string query, ISearchModel model)
         {
-            var feedoptions = new FeedOptions() { MaxItemCount = model.PageSize };
+            var feedoptions = new FeedOptions() { MaxItemCount = model.PageSize,  };
+            feedoptions.RequestContinuation = model.ContinuationToken;
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
             var result = Client.CreateDocumentQuery<TModel>(UriFactory.CreateDocumentCollectionUri(DatabaseName, CollectionName), feedoptions)
                 .Where(query)
@@ -75,6 +89,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             return response;
         }
 
+        /// <summary>
+        /// This will perform a Replace, finding the document by Id and then replacing it with the document that is passed in
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
         public override async Task<TModel> Upsert(TModel model)
         {
             if (!model.Id.HasValue || model.Id == Guid.Empty)
