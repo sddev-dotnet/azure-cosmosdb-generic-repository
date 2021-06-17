@@ -1,14 +1,16 @@
-﻿using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
+﻿using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SDDev.Net.GenericRepository.Contracts.BaseEntity;
 using SDDev.Net.GenericRepository.Contracts.Search;
+using SDDev.Net.GenericRepository.CosmosDB.Utilities;
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Linq.Dynamic.Core;
+using System.Linq.Expressions;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.CosmosDB
@@ -19,16 +21,19 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 	/// <typeparam name="TModel"></typeparam>
 	public class GenericRepository<TModel> : BaseRepository<TModel> where TModel : class, IStorableEntity
     {
+        private string _defaultPartitionKey;
 
-        public override async Task<TModel> Get(Guid id)
+        public override async Task<TModel> Get(Guid id, string partitionKey = null)
         {
             try
             {
-                var resp = await Client.ReadDocumentAsync(UriFactory.CreateDocumentUri(DatabaseName, CollectionName, id.ToString()));
-                var item = (TModel)(dynamic)resp.Resource;
-                return item;
+                var key = partitionKey ?? _defaultPartitionKey;
+                var resp = await Client.ReadItemAsync<TModel>(id.ToString(), new PartitionKey(key));
+                Log.LogDebug($"CosmosDb query. RU cost:{resp.RequestCharge}");
+
+                return resp;
             }
-            catch (DocumentClientException e)
+            catch (CosmosException e)
             {
                 if (e.StatusCode == HttpStatusCode.NotFound)
                     return null;
@@ -42,89 +47,294 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
+        /// <summary>
+        /// Query with a predicate you built using PredicateBuilder
+        /// </summary>
+        /// <param name="predicate"></param>
+        /// <param name="model"></param>
+        /// <returns></returns>
         public override async Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model)
         {
-            var feedoptions = new FeedOptions() { MaxItemCount = model.PageSize };
+            var queryOptions = new QueryRequestOptions() { MaxItemCount = model.PageSize };
+            if (!string.IsNullOrEmpty(model.PartitionKey))
+                queryOptions.PartitionKey = new PartitionKey(model.PartitionKey);
+            else
+                Log.LogWarning($"Enabling Cross-Partition Query in repo {this.GetType().Name}");
+
+            if (!string.IsNullOrEmpty(model.ContinuationToken))
+            {
+                var decoded = Convert.FromBase64String(model.ContinuationToken);
+                var token = System.Text.Encoding.UTF8.GetString(decoded);
+                model.ContinuationToken = token;
+            }
+
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
-            var result = Client.CreateDocumentQuery<TModel>(UriFactory.CreateDocumentCollectionUri(DatabaseName, CollectionName), feedoptions)
+
+            if (string.IsNullOrEmpty(model.ContinuationToken))
+            {
+
+                var totalResultsCount = Client
+                    .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
+                    .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                    .Where(predicate)
+                    .Select(x => x.Id)
+                    .Count();
+                response.TotalResults = totalResultsCount;
+
+                if (totalResultsCount > 500)
+                {
+                    Log.LogWarning($"Large Resultset found. Query returned {totalResultsCount} results.");
+                }
+            }
+
+            var result = Client
+                .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, continuationToken: model.ContinuationToken)
+                .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
                 .Where(predicate)
-                .AsEnumerable<TModel>()
-                .ToList();
+                .ToFeedIterator();
 
+            var res = await result.ReadNextAsync();
+            if (res.RequestCharge < 100)
+                Log.LogInformation($"Request used {res.RequestCharge} RUs.| Query: {result}");
+            else if (res.RequestCharge < 200)
+                Log.LogInformation($"Moderate request to CosmosDb used {res.RequestCharge} RUs");
+            else
+                Log.LogWarning($"Expensive request to CosmosDb. RUs: {res.RequestCharge} | Query: {result}");
 
-            response.Results = result;
-            response.TotalResults = result.Count();
-
+            response.Results = res.ToList();
+            response.ContinuationToken = !string.IsNullOrEmpty(res.ContinuationToken) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(res.ContinuationToken)) : "";
 
             return response;
 
         }
 
+        /// <summary>
+        /// Build a query string using Dynamic Linq 
+        /// </summary>
+        /// <param name="query"></param>
+        /// <param name="model"></param>
+        /// <returns></returns>
         public async override Task<ISearchResult<TModel>> Get(string query, ISearchModel model)
         {
-            var feedoptions = new FeedOptions() { MaxItemCount = model.PageSize };
+            var queryOptions = new QueryRequestOptions() { MaxItemCount = model.PageSize };
+
+            if (!string.IsNullOrEmpty(model.PartitionKey))
+                queryOptions.PartitionKey = new PartitionKey(model.PartitionKey);
+            else
+                Log.LogWarning($"Enabling Cross-Partition Query in repo {this.GetType().Name}");
+
+            if (!string.IsNullOrEmpty(model.ContinuationToken))
+            {
+                var decoded = Convert.FromBase64String(model.ContinuationToken);
+                var token = System.Text.Encoding.UTF8.GetString(decoded);
+                model.ContinuationToken = token;
+            }
+
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
-            var result = Client.CreateDocumentQuery<TModel>(UriFactory.CreateDocumentCollectionUri(DatabaseName, CollectionName), feedoptions)
+
+            if (string.IsNullOrEmpty(model.ContinuationToken))
+            {
+                var totalResultsCount = Client
+                    .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
+                    .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                    .Where(query)
+                    .Select(x => x.Id)
+                    .Count();
+
+                response.TotalResults = totalResultsCount;
+
+
+
+                if (totalResultsCount > 500)
+                {
+                    Log.LogWarning($"Large Resultset found. Query returned {totalResultsCount} results.");
+                }
+            }
+
+            var result = Client
+                .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, continuationToken: model.ContinuationToken)
+                .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
                 .Where(query)
-                .AsEnumerable<TModel>();
+                .ToFeedIterator();
 
-            response.Results = result.ToList();
-            response.TotalResults = result.Count();
+            var res = await result.ReadNextAsync();
+            if (res.RequestCharge < 100)
+                Log.LogInformation($"Request used {res.RequestCharge} RUs.| Query: {result}");
+            else if (res.RequestCharge < 200)
+                Log.LogInformation($"Moderate request to CosmosDb used {res.RequestCharge} RUs");
+            else
+                Log.LogWarning($"Expensive request to CosmosDb. RUs: {res.RequestCharge} | Query: {result}");
 
+            response.Results = res.ToList();
+
+            response.ContinuationToken = !string.IsNullOrEmpty(res.ContinuationToken) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(res.ContinuationToken)) : "";
 
             return response;
         }
 
-        public override async Task<TModel> Upsert(TModel model)
+        /// <summary>
+        /// This will perform a Replace, finding the document by Id and then replacing it with the document that is passed in
+        /// </summary>
+        /// <param name="model"></param>
+        /// <deprecated>Use either Create or Update purposefully</deprecated>
+        /// <returns></returns>
+        public async override Task<Guid> Upsert(TModel model)
         {
-            if (!model.Id.HasValue || model.Id == Guid.Empty)
-                model.Id = Guid.NewGuid();
             try
             {
-                await Client.ReadDocumentAsync(UriFactory.CreateDocumentUri(DatabaseName, CollectionName, model.Id.ToString()));
+                if (!model.Id.HasValue)
+                    model.Id = Guid.NewGuid();
 
-                //made it this far, we need to replace not insert
-                await Client.ReplaceDocumentAsync(UriFactory.CreateDocumentUri(DatabaseName, CollectionName, model.Id.ToString()), model);
+                if (model is IAuditableEntity)
+                {
+                    var auditable = model as IAuditableEntity;
+                    auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
+                }
 
-                return model;
+                await Client.UpsertItemAsync<TModel>(model, new PartitionKey(model.PartitionKey));
+                return model.Id.Value;
             }
-            catch (DocumentClientException e)
+            catch (CosmosException e)
             {
-                if (e.StatusCode == HttpStatusCode.NotFound)
-                {
-                    Log.LogDebug($"Creating Object type {typeof(TModel).Name} with ID {model.Id}");
-                    try
-                    {
-                        await Client.CreateDocumentAsync(UriFactory.CreateDocumentCollectionUri(DatabaseName, CollectionName), model);
-                    }
-                    catch (DocumentClientException ex)
-                    {
-                        Log.LogError("Problem creating document.", ex);
-                    }
-                    return model;
-                }
-                else
-                {
-                    throw;
-                }
+                Log.LogError(e, "Failed to upsert object.");
+                throw;
             }
         }
 
-        public override async Task Delete(Guid id)
+        public override async Task Delete(Guid id, string partitionKey, bool force = false)
         {
+
             Log.LogInformation($"Deleting document {id} from Database {DatabaseName} Collection {CollectionName}");
-            await Client.DeleteDocumentAsync(UriFactory.CreateDocumentUri(DatabaseName, CollectionName, id.ToString()));
+
+            if (!force)
+            {
+
+                var item = await Get(id, partitionKey);
+                if (item == null)
+                {
+                    Log.LogWarning($"Item with Id {id} could not be found. It must already be deleted or the incorrect partition key was supplied.");
+                    return;
+                }
+
+                item.TimeToLive = Configuration.DeleteTTL; // set the ttl so it gets deleted after a configured amount of time by the db engine
+                Log.LogInformation($"Force Delete false, setting TTL to {Configuration.DeleteTTL}");
+
+                await Client.UpsertItemAsync(item, new PartitionKey(partitionKey));
+
+            }
+            else
+            {
+                Log.LogInformation("Force Delete was true. Automated Indexing operations will not be performed for this action.");
+                try
+                {
+                    await Client.DeleteItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey));
+                }
+                catch (CosmosException e)
+                {
+                    Log.LogWarning(e, "Error deleting item.");
+                    return; // don't care if there was an exception
+                }
+            }
+
+
+
         }
 
-        public GenericRepository(IDocumentClient client, ILogger log) : base(client, log)
+        public override async Task<Guid> Create(TModel model)
         {
+            if (!model.Id.HasValue)
+                model.Id = Guid.NewGuid(); // always set the ID on create
+
+            Log.LogDebug($"Creating Object type {typeof(TModel).Name} with ID {model.Id}");
+
+            if (model is IAuditableEntity)
+            {
+                ((IAuditableEntity)model).AuditMetadata.CreatedDateTime = DateTime.UtcNow;
+                ((IAuditableEntity)model).AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
+            }
+
+            try
+            {
+                await Client.CreateItemAsync<TModel>(model, new PartitionKey(model.PartitionKey));
+                return model.Id.Value;
+            }
+            catch (Exception ex)
+            {
+                Log.LogError("Problem creating document.", ex);
+                throw;
+            }
         }
 
-        public GenericRepository(IDocumentClient client, ILogger log, string database, string collection) : base(client, log, database, collection)
+        public override async Task<Guid> Update(TModel model)
         {
+            try
+            {
+                if (model is IAuditableEntity)
+                {
+                    var auditable = model as IAuditableEntity;
+                    auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
+                }
 
+                await Client.ReplaceItemAsync(model, model.Id.ToString());
+
+                return model.Id.Value;
+            }
+            catch (Exception ex)
+            {
+                Log.LogError("Failed to update document", ex);
+                throw;
+            }
         }
 
+        public override async Task<ISearchResult<TModel>> GetAll(Expression<Func<TModel, bool>> predicate, ISearchModel model)
+        {
+            var results = new List<TModel>();
+            do
+            {
+                var partial = await Get(predicate, model);
+                model.ContinuationToken = partial.ContinuationToken;
+                results.AddRange(partial.Results);
+            } while (!string.IsNullOrEmpty(model.ContinuationToken));
 
+            var searchResult = new SearchResult<TModel>()
+            {
+                Results = results,
+                TotalResults = results.Count
+            };
+
+            return searchResult;
+        }
+
+        public override async Task<TModel> FindOne(Expression<Func<TModel, bool>> predicate, string partitionKey = null, bool singleResult = false)
+        {
+            var queryOptions = new QueryRequestOptions() { MaxItemCount = 2 };
+
+            if (!singleResult)
+                return Client
+                    .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
+                    .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                    .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
+                    .Where(predicate)
+                    .FirstOrDefault();
+            else
+                return Client
+                    .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
+                    .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                    .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
+                    .Where(predicate)
+                    .SingleOrDefault();
+        }
+
+        public GenericRepository(
+            CosmosClient client,
+            ILogger<BaseRepository<TModel>> log,
+            IOptions<CosmosDbConfiguration> config,
+            string collectionName = null,
+            string databaseName = null,
+            string partitionKey = null) : base(client, log, config, collectionName, databaseName, partitionKey)
+        {
+            var defaultInstance = Activator.CreateInstance<TModel>();
+            _defaultPartitionKey = defaultInstance.PartitionKey;
+        }
     }
 }

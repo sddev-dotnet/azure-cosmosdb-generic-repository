@@ -11,5 +11,7 @@
         string SortByField { get; set; }
 
         string ContinuationToken { get; set; }
+
+        string PartitionKey { get; set; }
     }
 }
