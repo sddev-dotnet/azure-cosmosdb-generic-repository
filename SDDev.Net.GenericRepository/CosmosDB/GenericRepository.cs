@@ -315,6 +315,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
                     .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
                     .Where(predicate)
+                    .AsEnumerable<TModel>()
                     .FirstOrDefault();
             else
                 return Client
@@ -322,6 +323,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
                     .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
                     .Where(predicate)
+                    .AsEnumerable<TModel>()
                     .SingleOrDefault();
         }
 
