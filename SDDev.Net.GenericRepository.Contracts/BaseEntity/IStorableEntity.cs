@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 
 namespace SDDev.Net.GenericRepository.Contracts.BaseEntity
@@ -8,6 +9,7 @@ namespace SDDev.Net.GenericRepository.Contracts.BaseEntity
         /// <summary>
         /// The unique identifier for the object
         /// </summary>
+        [JsonProperty("id")]
         Guid? Id { get; set; }
 
         /// <summary>
@@ -28,6 +30,7 @@ namespace SDDev.Net.GenericRepository.Contracts.BaseEntity
         /// <summary>
         /// The amount of time until the document is deleted by cosmos
         /// </summary>
+        [JsonProperty("ttl")]
         int TimeToLive { get; set; }
     }
 }
