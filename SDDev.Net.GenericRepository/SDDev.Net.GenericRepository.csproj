@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
 	  <TargetFramework>net5.0</TargetFramework>
@@ -6,17 +6,17 @@
 
   <ItemGroup>
 	<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
-    <PackageReference Include="LINQKit.Core" Version="1.1.24" />
-	<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.20.0" />
+    <PackageReference Include="LINQKit.Core" Version="1.2.2" />
+	<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.25.0" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-	<PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />
-	<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.1" />
-	<PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
-	<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="5.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.0" />
+	<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="6.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="2.0.0" />
+    <PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="2.0.4" />
 	  <PackageReference Include="System.Linq" Version="4.3.0" />
-    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.2.10" />
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.2.17" />
   </ItemGroup>
 
 </Project>

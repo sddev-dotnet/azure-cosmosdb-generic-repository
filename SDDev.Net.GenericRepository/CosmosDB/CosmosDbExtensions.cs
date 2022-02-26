@@ -39,6 +39,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 {
                     ContractResolver = new DefaultContractResolver(),
                     TypeNameHandling = TypeNameHandling.Objects,
+                    NullValueHandling = NullValueHandling.Include,
                     Converters = new List<JsonConverter>() { new StringEnumConverter() }
                 };
 

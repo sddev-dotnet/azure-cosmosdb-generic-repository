@@ -70,15 +70,22 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
 
+            var query= Client
+                .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, continuationToken: model.ContinuationToken)
+                .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                .Where(predicate);
+                //.ToFeedIterator();
+
+            if(!string.IsNullOrEmpty(model.SortByField))
+            {
+                var order = $"{model.SortByField} {(model.SortAscending ? "" : "DESC")}".Trim();
+                query = query.OrderBy(order);
+            }
+
             if (string.IsNullOrEmpty(model.ContinuationToken))
             {
 
-                var totalResultsCount = Client
-                    .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
-                    .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
-                    .Where(predicate)
-                    .Select(x => x.Id)
-                    .Count();
+                var totalResultsCount = await query.CountAsync().ConfigureAwait(false);
                 response.TotalResults = totalResultsCount;
 
                 if (totalResultsCount > 500)
@@ -87,12 +94,9 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 }
             }
 
-            var result = Client
-                .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, continuationToken: model.ContinuationToken)
-                .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
-                .Where(predicate)
-                .ToFeedIterator();
+            Log.LogDebug(query.ToString());
 
+            var result = query.ToFeedIterator();
             var res = await result.ReadNextAsync();
             if (res.RequestCharge < 100)
                 Log.LogInformation($"Request used {res.RequestCharge} RUs.| Query: {result}");
@@ -132,18 +136,23 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
 
+
+            var q = Client
+                .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, continuationToken: model.ContinuationToken)
+                .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                .Where(query);
+
+            if (!string.IsNullOrEmpty(model.SortByField))
+            {
+                var order = $"{model.SortByField} {(model.SortAscending ? "ASC" : "DESC")}";
+                q.OrderBy(order);
+            };
+
             if (string.IsNullOrEmpty(model.ContinuationToken))
             {
-                var totalResultsCount = Client
-                    .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
-                    .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
-                    .Where(query)
-                    .Select(x => x.Id)
-                    .Count();
+                var totalResultsCount = await q.CountAsync().ConfigureAwait(false);
 
                 response.TotalResults = totalResultsCount;
-
-
 
                 if (totalResultsCount > 500)
                 {
@@ -151,11 +160,9 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 }
             }
 
-            var result = Client
-                .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, continuationToken: model.ContinuationToken)
-                .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
-                .Where(query)
-                .ToFeedIterator();
+            Log.LogDebug(query.ToString());
+
+            var result = q.ToFeedIterator();
 
             var res = await result.ReadNextAsync();
             if (res.RequestCharge < 100)
