@@ -35,7 +35,7 @@ namespace SDDev.Net.GenericRepository.Tests
         {
             var configBuilder = new ConfigurationBuilder();
 
-            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 
             _config = configBuilder.SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.json")
@@ -56,8 +56,6 @@ namespace SDDev.Net.GenericRepository.Tests
             //Serialize enums as string using default naming strategy (unchanged)
             serializer.Converters.Add(new StringEnumConverter() { NamingStrategy = new DefaultNamingStrategy() });
 
-
-
             _client = new CosmosClient(cosmos.ConnectionString, new CosmosClientOptions()
             {
                 Serializer = new CosmosJsonDotNetSerializer(serializer)
@@ -65,9 +63,6 @@ namespace SDDev.Net.GenericRepository.Tests
 
             _factory = new LoggerFactory();
             _logger = _factory.CreateLogger<GenericRepository<TestObject>>();
-
-
-
         }
 
         //[ClassCleanup]
