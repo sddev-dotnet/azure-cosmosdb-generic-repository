@@ -16,6 +16,14 @@ namespace SDDev.Net.GenericRepository.Contracts.Indexing
 
         public bool CreateOrUpdateIndex { get; set; } = true;
 
+        /// <summary>
+        /// The name of the index to create
+        /// </summary>
         public string IndexName { get; set; }
+
+        /// <summary>
+        /// This is the name of the registered admin client
+        /// </summary>
+        public string AdminClientName { get; set; }
     }
 }

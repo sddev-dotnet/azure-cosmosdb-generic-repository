@@ -1,4 +1,5 @@
-﻿using SDDev.Net.GenericRepository.Contracts.BaseEntity;
+﻿using Azure.Search.Documents.Models;
+using SDDev.Net.GenericRepository.Contracts.BaseEntity;
 using SDDev.Net.GenericRepository.Contracts.Indexing;
 using System;
 using System.Collections.Generic;
@@ -10,6 +11,12 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
 {
     public interface IIndexedRepository<T, Y> : IRepository<T> where Y : IBaseIndexModel where T : IStorableEntity
     {
+        /// <summary>
+        /// This event is called after the DML operation is called on the T object and then the T object is mapped to Y object.
+        /// It allows you to perform additional mapping that is not possible within the library (like adding additional data to the index model) before indexing it
+        /// </summary>
+        public event Action<Y> AfterMapping;
+
         /// <summary>
         /// Call this method to set the repository that is being decorated. This exists because we have multiple extensions of the IRepository 
         /// and some require additional setup. So we don't constructor inject this property and instead let the consumer decide what concrete
@@ -31,6 +38,20 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
         /// <param name="repository"></param>
         void Initialize(string indexClientName, IRepository<T> repository, IndexRepositoryOptions options = null);
 
+        /// <summary>
+        /// Allows you to provide your own mapped object. We will set the ID property correctly, but all other mapping is owned by the caller
+        /// </summary>
+        /// <remarks>This is useful if you want to control mapping from one object to another or have additional data you need to map in for the index</remarks>
+        /// <param name="entity"></param>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        Task<Guid> Create(T entity, Y model);
+
+
+        Task<Guid> Update(T entity, Y model);
+
         Task CreateOrUpdateIndex();
+
+        Task<IndexSearchResult<Y>> Search(SearchRequest request);
     }
 }

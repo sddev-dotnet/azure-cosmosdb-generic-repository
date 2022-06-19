@@ -38,6 +38,8 @@ namespace SDDev.Net.GenericRepository.Indexing
         private readonly IAzureClientFactory<SearchClient> _clientFactory;
         private readonly IAzureClientFactory<SearchIndexClient> _adminFactory;
 
+        public event Action<Y> AfterMapping;
+
         public IndexedRepository(
             IAzureClientFactory<SearchClient> searchFactory, 
             IAzureClientFactory<SearchIndexClient> adminFactory,  
@@ -65,7 +67,9 @@ namespace SDDev.Net.GenericRepository.Indexing
         {
             _logger.LogDebug($"Setting Index client to {name}");
             _searchClient = _clientFactory.CreateClient(name);
-            _adminClient = _adminFactory.CreateClient(_options.IndexName);
+
+            _options.AdminClientName = _options.AdminClientName ?? _options.IndexName; // backwards compatibility we separated the two properties so we can reuse clients better
+            _adminClient = _adminFactory.CreateClient(_options.AdminClientName);
             
         }
 
@@ -111,11 +115,38 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             // map to index model
             var indexModel = _mapper.Map<Y>(model);
-
+            AfterMapping(indexModel); // allow the user to define additional mapping 
            
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
                 IndexDocumentsAction.MergeOrUpload(indexModel)
+            );
+            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+
+            return result;
+        }
+        
+        /// <summary>
+        /// Handle mapping before the object is inserted
+        /// </summary>
+        /// <param name="entity"></param>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public virtual async Task<Guid> Create(T entity, Y model)
+        {
+            Validate();
+
+            // insert document into repository
+            var result = await _repository.Create(entity);
+
+            // map to index model
+            model.Id = entity.Id.ToString();
+
+
+            // upload to Azure Search
+            var batch = IndexDocumentsBatch.Create(
+                IndexDocumentsAction.MergeOrUpload(model)
             );
             await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
 
@@ -181,6 +212,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             // map to index model
             var indexModel = _mapper.Map<Y>(model);
+            AfterMapping(indexModel);
 
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -191,6 +223,28 @@ namespace SDDev.Net.GenericRepository.Indexing
             return result;
 
         }
+        
+        /// <summary>
+        /// Perform your own mapping instead of using our mapping logic
+        /// </summary>
+        /// <remarks>assumes that you have performed all of the mapping required outside of this operation</remarks>
+        /// <param name="entity"></param>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public virtual async Task<Guid> Update(T entity, Y model)
+        {
+            Validate();
+            var result = await _repository.Update(entity).ConfigureAwait(false);
+
+            // upload to Azure Search
+            var batch = IndexDocumentsBatch.Create(
+                IndexDocumentsAction.MergeOrUpload(model)
+            );
+            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+
+            return result;
+        }
 
         public virtual async Task<Guid> Upsert(T model)
         {
@@ -199,6 +253,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             // map to index model
             var indexModel = _mapper.Map<Y>(model);
+            AfterMapping(indexModel);
 
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -207,6 +262,28 @@ namespace SDDev.Net.GenericRepository.Indexing
             await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
 
             return result;
+        }
+        
+        /// <summary>
+        /// Performs a search against the index and returns the full Azure response
+        /// </summary>
+        /// <param name="request">The search text and the options for the search</param>
+        /// <returns></returns>
+        public async Task<IndexSearchResult<Y>> Search(SearchRequest request)
+        {
+            Validate();
+            var response = new IndexSearchResult<Y>();
+            var results =  await _searchClient.SearchAsync<Y>(request.SearchText, request.Options);
+
+            response.Metadata = results;
+
+            // get all of the results and load them into the response
+            await foreach(var result in results.Value.GetResultsAsync())
+            {
+                response.Results.Add(result);
+            }
+
+            return response;
         }
 
         protected void Validate()
@@ -221,6 +298,7 @@ namespace SDDev.Net.GenericRepository.Indexing
                 throw new ApplicationException("The Search Client is not initialized. Ensure that you have registered the SearchClient and provided the search client name.");
             }
         }
+
 
     }
 }

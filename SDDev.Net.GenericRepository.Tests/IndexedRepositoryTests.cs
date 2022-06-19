@@ -122,6 +122,11 @@ namespace SDDev.Net.GenericRepository.Tests
                 RemoveOnLogicalDelete = false
             });
 
+
+            _sut.AfterMapping += (BaseTestIndexModel model) =>
+            {
+                model.Id = "";
+            };
         }
 
         [TestMethod]
