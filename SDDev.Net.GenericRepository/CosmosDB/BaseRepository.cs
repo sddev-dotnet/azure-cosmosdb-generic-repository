@@ -77,7 +77,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <summary>
         /// The connection to the Azure DocumentDB. This should be injected and configured in the Autofac Config class.
         /// </summary>
-        protected Container Client { get; set; }
+        public Container Client { get; set; }
 
         /// <summary>
         /// Retrieves a single instance of an object by ID. 

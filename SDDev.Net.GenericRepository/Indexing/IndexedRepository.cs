@@ -115,7 +115,8 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             // map to index model
             var indexModel = _mapper.Map<Y>(model);
-            AfterMapping(indexModel); // allow the user to define additional mapping 
+            if (AfterMapping != null)
+                AfterMapping(indexModel); // allow the user to define additional mapping 
            
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -212,7 +213,9 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             // map to index model
             var indexModel = _mapper.Map<Y>(model);
-            AfterMapping(indexModel);
+
+            if(AfterMapping != null)
+                AfterMapping(indexModel);
 
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -253,7 +256,9 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             // map to index model
             var indexModel = _mapper.Map<Y>(model);
-            AfterMapping(indexModel);
+
+            if (AfterMapping != null)
+                AfterMapping(indexModel);
 
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
