@@ -122,10 +122,9 @@ namespace SDDev.Net.GenericRepository.Tests
                 RemoveOnLogicalDelete = false
             });
 
-
-            _sut.AfterMapping += (BaseTestIndexModel model) =>
+            _sut.AfterMappingAsync += async (BaseTestIndexModel, BaseTestObject) =>
             {
-                model.Id = "";
+                await Task.FromResult(true);
             };
         }
 

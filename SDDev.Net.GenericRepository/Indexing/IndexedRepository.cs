@@ -38,7 +38,8 @@ namespace SDDev.Net.GenericRepository.Indexing
         private readonly IAzureClientFactory<SearchClient> _clientFactory;
         private readonly IAzureClientFactory<SearchIndexClient> _adminFactory;
 
-        public event Action<Y> AfterMapping;
+        public event Action<Y, T> AfterMapping;
+        public event Func<Y, T, Task> AfterMappingAsync;
 
         public IndexedRepository(
             IAzureClientFactory<SearchClient> searchFactory, 
@@ -114,9 +115,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             var result = await _repository.Create(model);
 
             // map to index model
-            var indexModel = _mapper.Map<Y>(model);
-            if (AfterMapping != null)
-                AfterMapping(indexModel); // allow the user to define additional mapping 
+            var indexModel = await PerformMap(model);
            
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -128,12 +127,12 @@ namespace SDDev.Net.GenericRepository.Indexing
         }
         
         /// <summary>
-        /// Handle mapping before the object is inserted
+        /// This is used if you want to perform your own mapping logic outside the 
+        /// indexed repository. The ID from the created entity will be set on the model for you
         /// </summary>
         /// <param name="entity"></param>
         /// <param name="model"></param>
         /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
         public virtual async Task<Guid> Create(T entity, Y model)
         {
             Validate();
@@ -212,10 +211,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
 
             // map to index model
-            var indexModel = _mapper.Map<Y>(model);
-
-            if(AfterMapping != null)
-                AfterMapping(indexModel);
+            var indexModel = await PerformMap(model);
 
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -255,10 +251,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             var result = await _repository.Upsert(model);
 
             // map to index model
-            var indexModel = _mapper.Map<Y>(model);
-
-            if (AfterMapping != null)
-                AfterMapping(indexModel);
+            var indexModel = await PerformMap(model);
 
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -302,6 +295,28 @@ namespace SDDev.Net.GenericRepository.Indexing
             {
                 throw new ApplicationException("The Search Client is not initialized. Ensure that you have registered the SearchClient and provided the search client name.");
             }
+        }
+
+        private async Task<Y> PerformMap(T model)
+        {
+            var indexModel = _mapper.Map<Y>(model);
+
+            if (AfterMapping != null || AfterMappingAsync != null)
+            {
+                if (AfterMapping != null)
+                {
+                    AfterMapping(indexModel, model); // allow the user to define additional mapping 
+                    return indexModel;
+                }
+
+                if (AfterMappingAsync != null)
+                {
+                    await AfterMappingAsync(indexModel, model).ConfigureAwait(false);
+                    return indexModel;
+                }
+            }
+
+            return indexModel;
         }
 
 

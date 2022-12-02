@@ -15,7 +15,9 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
         /// This event is called after the DML operation is called on the T object and then the T object is mapped to Y object.
         /// It allows you to perform additional mapping that is not possible within the library (like adding additional data to the index model) before indexing it
         /// </summary>
-        public event Action<Y> AfterMapping;
+        public event Action<Y, T> AfterMapping;
+
+        public event Func<Y, T, Task> AfterMappingAsync;
 
         /// <summary>
         /// Call this method to set the repository that is being decorated. This exists because we have multiple extensions of the IRepository 

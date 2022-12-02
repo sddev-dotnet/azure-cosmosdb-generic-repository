@@ -105,7 +105,19 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             else
                 Log.LogWarning($"Expensive request to CosmosDb. RUs: {res.RequestCharge} | Query: {result}");
 
+
+
             response.Results = res.ToList();
+
+            if (response.Results.Count < model.PageSize & !string.IsNullOrEmpty(res.ContinuationToken))
+            {
+                while (response.Results.Count < model.PageSize && !string.IsNullOrEmpty(res.ContinuationToken))
+                {
+                    res = await result.ReadNextAsync();
+                    ((List<TModel>)response.Results).AddRange(res.ToList());
+                }
+            }
+
             response.ContinuationToken = !string.IsNullOrEmpty(res.ContinuationToken) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(res.ContinuationToken)) : "";
 
             return response;
@@ -173,6 +185,15 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 Log.LogWarning($"Expensive request to CosmosDb. RUs: {res.RequestCharge} | Query: {result}");
 
             response.Results = res.ToList();
+
+            if (response.Results.Count < model.PageSize & !string.IsNullOrEmpty(res.ContinuationToken))
+            {
+                while (response.Results.Count < model.PageSize && !string.IsNullOrEmpty(res.ContinuationToken))
+                {
+                    res = await result.ReadNextAsync();
+                    ((List<TModel>)response.Results).AddRange(res.ToList());
+                }
+            }
 
             response.ContinuationToken = !string.IsNullOrEmpty(res.ContinuationToken) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(res.ContinuationToken)) : "";
 
@@ -256,6 +277,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             if (model is IAuditableEntity)
             {
+                var auditable = (IAuditableEntity)model;
+                if(auditable.AuditMetadata == null)
+                    auditable.AuditMetadata = new AuditMetadata();
+
                 ((IAuditableEntity)model).AuditMetadata.CreatedDateTime = DateTime.UtcNow;
                 ((IAuditableEntity)model).AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
             }
