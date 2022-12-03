@@ -94,6 +94,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 }
             }
 
+            if(model.Offset > 0)
+            {
+                query = query.Skip(model.Offset).Take(model.PageSize);
+            }
+
             Log.LogDebug(query.ToString());
 
             var result = query.ToFeedIterator();
@@ -170,6 +175,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 {
                     Log.LogWarning($"Large Resultset found. Query returned {totalResultsCount} results.");
                 }
+            }
+
+            if (model.Offset > 0)
+            {
+                query.Skip(model.Offset).Take(model.PageSize);
             }
 
             Log.LogDebug(query.ToString());
