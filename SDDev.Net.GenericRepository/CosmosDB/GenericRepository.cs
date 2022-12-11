@@ -113,6 +113,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
 
             response.Results = res.ToList();
+            var continuation = res.ContinuationToken;
 
             if (response.Results.Count < model.PageSize & !string.IsNullOrEmpty(res.ContinuationToken))
             {
@@ -120,10 +121,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 {
                     res = await result.ReadNextAsync();
                     ((List<TModel>)response.Results).AddRange(res.ToList());
+                    continuation = res.ContinuationToken;
                 }
             }
 
-            response.ContinuationToken = !string.IsNullOrEmpty(res.ContinuationToken) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(res.ContinuationToken)) : "";
+            response.ContinuationToken = !string.IsNullOrEmpty(continuation) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(continuation)) : "";
 
             return response;
 
