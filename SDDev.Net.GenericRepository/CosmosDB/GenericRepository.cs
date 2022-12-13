@@ -354,21 +354,46 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             var queryOptions = new QueryRequestOptions() { MaxItemCount = 2 };
 
             if (!singleResult)
-                return Client
-                    .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
-                    .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
-                    .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
-                    .Where(predicate)
-                    .AsEnumerable<TModel>()
-                    .FirstOrDefault();
+            {
+                try
+                {
+                    return Client
+                        .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
+                        .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                        .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
+                        .Where(predicate)
+                        .AsEnumerable<TModel>()
+                        .FirstOrDefault();
+                }
+                catch (CosmosException e)
+                {
+                    if (e.StatusCode == HttpStatusCode.NotFound)
+                        return null;
+
+                    throw;
+                }
+            }
+                
             else
-                return Client
-                    .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
-                    .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
-                    .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
-                    .Where(predicate)
-                    .AsEnumerable<TModel>()
-                    .SingleOrDefault();
+            {
+                try
+                {
+                    return Client
+                        .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
+                        .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                        .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
+                        .Where(predicate)
+                        .AsEnumerable<TModel>()
+                        .SingleOrDefault();
+                }
+                catch (CosmosException e)
+                {
+                    if (e.StatusCode == HttpStatusCode.NotFound)
+                        return null;
+
+                    throw;
+                }
+            }
         }
 
         public GenericRepository(
