@@ -333,20 +333,30 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         public override async Task<ISearchResult<TModel>> GetAll(Expression<Func<TModel, bool>> predicate, ISearchModel model)
         {
             var results = new List<TModel>();
-            do
+            try
             {
-                var partial = await Get(predicate, model);
-                model.ContinuationToken = partial.ContinuationToken;
-                results.AddRange(partial.Results);
-            } while (!string.IsNullOrEmpty(model.ContinuationToken));
+                do
+                {
+                    var partial = await Get(predicate, model);
+                    model.ContinuationToken = partial.ContinuationToken;
+                    results.AddRange(partial.Results);
+                } while (!string.IsNullOrEmpty(model.ContinuationToken));
 
-            var searchResult = new SearchResult<TModel>()
+                var searchResult = new SearchResult<TModel>()
+                {
+                    Results = results,
+                    TotalResults = results.Count
+                };
+
+                return searchResult;
+            } catch (CosmosException ex)
             {
-                Results = results,
-                TotalResults = results.Count
-            };
+                if (ex.StatusCode == HttpStatusCode.NotFound)
+                    return new SearchResult<TModel>() { Results = new List<TModel>() };
 
-            return searchResult;
+                throw;
+            }
+            
         }
 
         public override async Task<TModel> FindOne(Expression<Func<TModel, bool>> predicate, string partitionKey = null, bool singleResult = false)
@@ -357,13 +367,20 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             {
                 try
                 {
-                    return Client
+                    var query = Client
                         .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
                         .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
-                        .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
+                                                                              //.Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
                         .Where(predicate)
-                        .AsEnumerable<TModel>()
-                        .FirstOrDefault();
+                        .AsQueryable();
+                    var items = new List<TModel>();
+                    var iterator = query.ToFeedIterator();
+                    while (iterator.HasMoreResults)
+                    {
+                        items.AddRange(await iterator.ReadNextAsync());
+                    }
+
+                    return items.FirstOrDefault();
                 }
                 catch (CosmosException e)
                 {
@@ -378,13 +395,20 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             {
                 try
                 {
-                    return Client
+                    var query = Client
                         .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
                         .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
-                        .Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
+                                                                              //.Where(x => string.IsNullOrEmpty(partitionKey) ? x.IsActive : x.IsActive && x.PartitionKey == partitionKey)
                         .Where(predicate)
-                        .AsEnumerable<TModel>()
-                        .SingleOrDefault();
+                        .AsQueryable();
+                    var items = new List<TModel>();
+                    var iterator = query.ToFeedIterator();
+                    while (iterator.HasMoreResults)
+                    {
+                        items.AddRange(await iterator.ReadNextAsync());
+                    }
+
+                    return items.SingleOrDefault();
                 }
                 catch (CosmosException e)
                 {
