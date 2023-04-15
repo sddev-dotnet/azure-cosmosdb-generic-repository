@@ -18,7 +18,7 @@
 	<PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
 	<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="6.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
-    <PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="4.1.0" />
+    <PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="5.0.0" />
 	  <PackageReference Include="System.Linq" Version="4.3.0" />
     <PackageReference Include="System.Linq.Dynamic.Core" Version="1.2.23" />
   </ItemGroup>
