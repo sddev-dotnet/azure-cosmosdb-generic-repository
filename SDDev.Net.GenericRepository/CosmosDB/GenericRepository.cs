@@ -27,8 +27,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
             try
             {
-                var key = partitionKey ?? _defaultPartitionKey;
-                var resp = await Client.ReadItemAsync<TModel>(id.ToString(), new PartitionKey(key));
+
+                if(string.IsNullOrEmpty(partitionKey))
+                    return await FindOne(x => x.Id == id).ConfigureAwait(false);
+                
+                var resp = await Client.ReadItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey));
                 Log.LogDebug($"CosmosDb query. RU cost:{resp.RequestCharge}");
 
                 return resp;
