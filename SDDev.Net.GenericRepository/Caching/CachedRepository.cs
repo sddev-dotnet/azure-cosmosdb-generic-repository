@@ -19,7 +19,7 @@ namespace SDDev.Net.GenericRepository.Caching
 {
     public class CachedRepository<T> : GenericRepository<T> where T : class, IStorableEntity
     {
-        protected int CacheSeconds = 60;
+        protected int cacheSeconds = 60;
         protected bool refreshCache = true;
         private IRepository<T> _repo;
         private IDistributedCache _cache;
@@ -29,18 +29,23 @@ namespace SDDev.Net.GenericRepository.Caching
             ILogger<BaseRepository<T>> log, 
             IOptions<CosmosDbConfiguration> config, 
             IDistributedCache cache,
+            int cacheSeconds = 60,
+            bool refreshCache = true,
             string collectionName = null, 
             string databaseName = null, 
             string partitionKey = null) : base(client, log, config, collectionName, databaseName, partitionKey)
         {
             _cache = cache;
+            this.cacheSeconds = cacheSeconds;
+            this.refreshCache = refreshCache;
+
         }
 
         public override async Task<Guid> Create(T model)
         {
             var item = await base.Create(model);
 
-            var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheSeconds));
+            var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds));
             await _cache.SetAsync(model.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model)), options);
 
             return item;
@@ -71,7 +76,7 @@ namespace SDDev.Net.GenericRepository.Caching
 
         public override async Task<Guid> Update(T model)
         {
-            var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheSeconds));
+            var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds));
             await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model), options);
 
             return await base.Update(model);
