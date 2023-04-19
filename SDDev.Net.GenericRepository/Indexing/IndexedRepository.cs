@@ -160,18 +160,11 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             await _repository.Delete(id, partitionKey, force).ConfigureAwait(false);
 
-            if(!this._options.RemoveOnLogicalDelete && force == false)
-            {
-                var item = await _repository.FindOne(x => x.Id == id);
-                var indexModel = _mapper.Map<Y>(item);
-                var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.MergeOrUpload(indexModel));
-                await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
-            } else
-            {
-                var indexModel = _mapper.Map<Y>(entity);
-                var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
-                await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
-            }
+            
+            var indexModel = _mapper.Map<Y>(entity);
+            var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
+            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            
         }
 
         public virtual Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false)
@@ -209,6 +202,16 @@ namespace SDDev.Net.GenericRepository.Indexing
             Validate();
             var result = await _repository.Update(model).ConfigureAwait(false);
 
+            if (model.IsActive == false)
+            {
+                if (!this._options.RemoveOnLogicalDelete)
+                {
+                    var deleteModel = _mapper.Map<Y>(model);
+                    var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
+                    await _searchClient.IndexDocumentsAsync(deleteBatch).ConfigureAwait(false);
+                    return result;
+                }
+            }
 
             // map to index model
             var indexModel = await PerformMap(model);
@@ -236,6 +239,17 @@ namespace SDDev.Net.GenericRepository.Indexing
             Validate();
             var result = await _repository.Update(entity).ConfigureAwait(false);
 
+            if (entity.IsActive == false)
+            {
+                if (!this._options.RemoveOnLogicalDelete)
+                {
+                    var indexModel = _mapper.Map<Y>(entity);
+                    var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
+                    await _searchClient.IndexDocumentsAsync(deleteBatch).ConfigureAwait(false);
+                    return result;
+                }
+            }
+
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
                 IndexDocumentsAction.MergeOrUpload(model)
@@ -249,6 +263,17 @@ namespace SDDev.Net.GenericRepository.Indexing
         {
             Validate();
             var result = await _repository.Upsert(model);
+
+            if (model.IsActive == false)
+            {
+                if (!this._options.RemoveOnLogicalDelete)
+                {
+                    var deleteModel = _mapper.Map<Y>(model);
+                    var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
+                    await _searchClient.IndexDocumentsAsync(deleteBatch).ConfigureAwait(false);
+                    return result;
+                }
+            }
 
             // map to index model
             var indexModel = await PerformMap(model);
