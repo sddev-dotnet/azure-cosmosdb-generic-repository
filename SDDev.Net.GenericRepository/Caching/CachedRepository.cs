@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -70,8 +71,14 @@ namespace SDDev.Net.GenericRepository.Caching
                 var entity = JsonConvert.DeserializeObject<T>(item);
                 return entity;
             }
+            var result = await base.Get(id, partitionKey);
 
-            return await base.Get(id, partitionKey);
+            if(result != null)
+            {
+                var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds));
+                await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result)), options);
+            }
+            return result;
         }
 
         public override async Task<Guid> Update(T model)
@@ -80,6 +87,22 @@ namespace SDDev.Net.GenericRepository.Caching
             await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model), options);
 
             return await base.Update(model);
+        }
+
+        public override async Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false)
+        {
+            
+            var result =  await base.FindOne(predicate, partitionKey, singleResult).ConfigureAwait(false);
+
+
+            if (result != null)
+            {
+                var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds));
+                await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result)), options);
+            }
+
+
+            return result;
         }
     }
 }
