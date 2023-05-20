@@ -298,8 +298,20 @@ namespace SDDev.Net.GenericRepository.Indexing
             var response = new IndexSearchResult<Y>();
             var results =  await _searchClient.SearchAsync<Y>(request.SearchText, request.Options);
 
-            response.Metadata = results;
+            var metadata = new IndexSearchMetadata();
+            var facetOutput = metadata.Facets;
+            metadata.TotalResults = results.Value?.TotalCount ?? 0;
+            if(results?.Value?.Facets?.Count > 0)
+            {
+                foreach(var facetResult in results?.Value?.Facets)
+                {
+                    facetOutput[facetResult.Key] = facetResult.Value
+                           .Select(x => new FacetValue { Value = x.Value.ToString(), Count = x.Count })
+                           .ToList();
+                }
+            }
 
+            response.Metadata = metadata;
             // get all of the results and load them into the response
             await foreach(var result in results.Value.GetResultsAsync())
             {

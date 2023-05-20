@@ -22,6 +22,7 @@ using SDDev.Net.GenericRepository.Contracts.Repository;
 using SDDev.Net.GenericRepository.Contracts.Indexing;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.Indexing;
+using FluentAssertions;
 
 namespace SDDev.Net.GenericRepository.Tests
 {
@@ -104,7 +105,7 @@ namespace SDDev.Net.GenericRepository.Tests
                 var logger = x.GetService<ILogger<GenericRepository<BaseTestObject>>>();
                 var options = x.GetService<IOptions<CosmosDbConfiguration>>();
 
-                return new GenericRepository<BaseTestObject>(client, logger, options, "Testing", "dhr");
+                return new GenericRepository<BaseTestObject>(client, logger, options, "Testing", "kinectify");
             });
             _services.AddScoped<IIndexedRepository<BaseTestObject, BaseTestIndexModel>, IndexedRepository<BaseTestObject, BaseTestIndexModel>>();
         }
@@ -172,6 +173,24 @@ namespace SDDev.Net.GenericRepository.Tests
             var resp = await _sut.Update(test);
 
             // Assert
+        }
+
+        [TestMethod]
+        public async Task WhenRequestingFacets_ThenFacetCountsReturned()
+        {
+            // Arrange
+            var req = new SearchRequest()
+            {
+                Options = new Azure.Search.Documents.SearchOptions()
+
+            };
+            req.Options.Facets.Add("Name");
+
+            // Act
+            var result = await _sut.Search(req);
+
+            // Assert
+            result.Metadata.Facets.Count().Should().BeGreaterThan(0);
         }
 
         [TestMethod]

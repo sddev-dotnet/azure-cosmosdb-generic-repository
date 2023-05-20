@@ -10,7 +10,7 @@ namespace SDDev.Net.GenericRepository.Tests.TestModels
 {
     public class BaseTestIndexModel : BaseIndexModel
     {
-        [SearchableField]
+        [SearchableField(IsFacetable = true)]
         public string Name { get; set; }
     }
 }

@@ -11,7 +11,7 @@ namespace SDDev.Net.GenericRepository.Contracts.Indexing
 {
     public class IndexSearchResult<T> 
     {
-        public Response<SearchResults<T>> Metadata { get; set; }
+        public IndexSearchMetadata Metadata { get; set; }
         public List<Azure.Search.Documents.Models.SearchResult<T>> Results { get; set; } = new List<Azure.Search.Documents.Models.SearchResult<T>>();
     }
 }

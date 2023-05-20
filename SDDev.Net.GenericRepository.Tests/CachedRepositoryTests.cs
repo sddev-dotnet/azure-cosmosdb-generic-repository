@@ -75,7 +75,7 @@ namespace SDDev.Net.GenericRepository.Tests
             var opts = new MemoryDistributedCacheOptions();
             var options = new OptionsWrapper<MemoryDistributedCacheOptions>(opts);
             _cache = new MemoryDistributedCache(options);
-            _sut = new CachedRepository<TestObject>(_client, _logger, _cosmos, _cache, "TestContainer", "dhr");
+            _sut = new CachedRepository<TestObject>(_client, _logger, _cosmos, _cache,  collectionName: "TestContainer", databaseName: "dhr");
         }
 
         [TestMethod]
