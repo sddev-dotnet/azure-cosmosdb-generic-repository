@@ -11,14 +11,12 @@ using SDDev.Net.GenericRepository.Contracts.Indexing;
 using SDDev.Net.GenericRepository.Contracts.Repository;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.Indexing
-{ 
+{
     /// <summary>
     /// Class used to store data both in Azure CosmosDB and index it in Azure Search
     /// </summary>
@@ -204,7 +202,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             if (model.IsActive == false)
             {
-                if (!this._options.RemoveOnLogicalDelete)
+                if (_options.RemoveOnLogicalDelete)
                 {
                     var deleteModel = _mapper.Map<Y>(model);
                     var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
@@ -241,7 +239,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             if (entity.IsActive == false)
             {
-                if (!this._options.RemoveOnLogicalDelete)
+                if (_options.RemoveOnLogicalDelete)
                 {
                     var indexModel = _mapper.Map<Y>(entity);
                     var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
@@ -266,7 +264,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             if (model.IsActive == false)
             {
-                if (!this._options.RemoveOnLogicalDelete)
+                if (_options.RemoveOnLogicalDelete)
                 {
                     var deleteModel = _mapper.Map<Y>(model);
                     var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
