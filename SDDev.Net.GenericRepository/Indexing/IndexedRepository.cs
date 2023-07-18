@@ -115,7 +115,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             var result = await _repository.Create(model);
 
             // map to index model
-            var indexModel = await PerformMap(model);
+            var indexModel = await PerformMap(model).ConfigureAwait(false);
            
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -214,7 +214,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             }
 
             // map to index model
-            var indexModel = await PerformMap(model);
+            var indexModel = await PerformMap(model).ConfigureAwait(false);
 
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
@@ -310,7 +310,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             }
 
             // map to index model
-            var indexModel = await PerformMap(model);
+            var indexModel = await PerformMap(model).ConfigureAwait(false);
 
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
