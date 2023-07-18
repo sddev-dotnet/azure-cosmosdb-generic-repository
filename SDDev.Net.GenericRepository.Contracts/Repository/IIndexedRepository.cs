@@ -54,6 +54,10 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
 
         Task CreateOrUpdateIndex();
 
+        Task UpdateIndex(T entity);
+
+        Task UpdateIndex(Guid id, string partitionKey = null);
+
         Task<IndexSearchResult<Y>> Search(SearchRequest request);
     }
 }

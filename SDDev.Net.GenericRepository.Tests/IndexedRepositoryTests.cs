@@ -243,5 +243,40 @@ namespace SDDev.Net.GenericRepository.Tests
 
             // Assert
         }
+
+        [TestMethod]
+        public async Task WhenUpdatingIndex_ThenUpdated()
+        {
+            // Arrange
+            var test = new BaseTestObject()
+            {
+                Name = "Force Delete Gone"
+            };
+
+            var result = await _sut.Create(test);
+            // Act
+
+            test.Name = "Force Delete Gone Updated";
+            await _sut.UpdateIndex(test);
+
+            // Assert
+        }
+
+        [TestMethod]
+        public async Task WhenUpdatingIndexByID_ThenUpdated()
+        {
+            // Arrange
+            var test = new BaseTestObject()
+            {
+                Name = "Force Delete Gone"
+            };
+
+            var result = await _sut.Create(test);
+            // Act
+
+            await _sut.UpdateIndex(test.Id.Value, test.PartitionKey);
+
+            // Assert
+        }
     }
 }

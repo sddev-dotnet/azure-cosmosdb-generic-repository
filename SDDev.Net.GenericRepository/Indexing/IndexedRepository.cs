@@ -4,6 +4,7 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.Models;
+using Microsoft.Azure.Cosmos.Serialization.HybridRow;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Logging;
 using SDDev.Net.GenericRepository.Contracts.BaseEntity;
@@ -13,6 +14,7 @@ using SDDev.Net.GenericRepository.Contracts.Search;
 using System;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.Indexing
@@ -223,7 +225,41 @@ namespace SDDev.Net.GenericRepository.Indexing
             return result;
 
         }
-        
+
+        public async Task UpdateIndex(T entity)
+        {
+            Validate();
+            if (entity.IsActive == false)
+            {
+                if (_options.RemoveOnLogicalDelete)
+                {
+                    var deleteModel = _mapper.Map<Y>(entity);
+                    var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
+                    await _searchClient.IndexDocumentsAsync(deleteBatch).ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            // map to index model
+            var indexModel = await PerformMap(entity).ConfigureAwait(false);
+
+            // upload to Azure Search
+            var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.MergeOrUpload(indexModel));
+            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+        }
+
+        public Task UpdateIndex(Guid id, string partitionKey)
+        {
+            return Get(id, partitionKey).ContinueWith(async x =>
+            {
+                var entity = await x;
+                if (entity != null)
+                {
+                    await UpdateIndex(entity).ConfigureAwait(false);
+                }
+            });
+        }
+
         /// <summary>
         /// Perform your own mapping instead of using our mapping logic
         /// </summary>
@@ -354,6 +390,6 @@ namespace SDDev.Net.GenericRepository.Indexing
             return indexModel;
         }
 
-
+        
     }
 }
