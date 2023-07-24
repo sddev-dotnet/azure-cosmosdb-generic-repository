@@ -70,5 +70,7 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
         /// <param name="id"></param>
         /// <returns></returns>
         Task Delete(Guid id, string partitionKey, bool force = false);
+
+        Task Delete(T model, bool force = false);
     }
 }

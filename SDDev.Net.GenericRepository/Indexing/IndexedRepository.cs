@@ -156,15 +156,26 @@ namespace SDDev.Net.GenericRepository.Indexing
         public virtual async Task Delete(Guid id, string partitionKey, bool force = false)
         {
             Validate();
-            var entity = await _repository.FindOne(x => x.Id == id).ConfigureAwait(false);
+            var entity = await _repository.Get(id, partitionKey);
 
-            await _repository.Delete(id, partitionKey, force).ConfigureAwait(false);
+            await _repository.Delete(entity, force).ConfigureAwait(false);
 
             
             var indexModel = _mapper.Map<Y>(entity);
             var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
             await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
             
+        }
+
+        public virtual async Task Delete(T model, bool force = false)
+        {
+            Validate();
+
+            await _repository.Delete(model, force).ConfigureAwait(false);
+
+            var indexModel = _mapper.Map<Y>(model);
+            var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
+            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
         }
 
         public virtual Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false)

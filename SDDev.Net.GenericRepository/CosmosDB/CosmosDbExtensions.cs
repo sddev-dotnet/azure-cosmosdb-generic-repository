@@ -55,7 +55,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
                 return new CosmosClient(config.CurrentValue.ConnectionString, new CosmosClientOptions()
                 {
-                    Serializer = serializer
+                    Serializer = serializer,
+                    AllowBulkExecution = config.CurrentValue.EnableBulkQuerying
                 });
 
             });

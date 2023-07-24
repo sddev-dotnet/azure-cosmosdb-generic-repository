@@ -1,17 +1,20 @@
 ﻿using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Linq;
+using Microsoft.Azure.Cosmos.Serialization.HybridRow.Schemas;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SDDev.Net.GenericRepository.Contracts.BaseEntity;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.CosmosDB.Utilities;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Dynamic.Core;
 using System.Linq.Expressions;
 using System.Net;
 using System.Threading.Tasks;
+using PartitionKey = Microsoft.Azure.Cosmos.PartitionKey;
 
 namespace SDDev.Net.GenericRepository.CosmosDB
 {
@@ -234,7 +237,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
                 }
 
-                await Client.UpsertItemAsync<TModel>(model, new PartitionKey(model.PartitionKey));
+                await Client.UpsertItemAsync<TModel>(model);
                 return model.Id.Value;
             }
             catch (CosmosException e)
@@ -248,10 +251,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
 
             Log.LogInformation($"Deleting document {id} from Database {DatabaseName} Collection {CollectionName}");
+            
 
             if (!force)
             {
-
                 var item = await Get(id, partitionKey);
                 if (item == null)
                 {
@@ -262,7 +265,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 item.TimeToLive = Configuration.DeleteTTL; // set the ttl so it gets deleted after a configured amount of time by the db engine
                 Log.LogInformation($"Force Delete false, setting TTL to {Configuration.DeleteTTL}");
 
-                await Client.UpsertItemAsync(item, new PartitionKey(partitionKey));
+                await Client.UpsertItemAsync(item);
 
             }
             else
@@ -270,7 +273,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 Log.LogInformation("Force Delete was true. Automated Indexing operations will not be performed for this action.");
                 try
                 {
-                    await Client.DeleteItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey));
+                    await Client.DeleteItemAsync<TModel>(id.ToString(), new Microsoft.Azure.Cosmos.PartitionKey(partitionKey));
                 }
                 catch (CosmosException e)
                 {
@@ -281,6 +284,37 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
 
 
+        }
+        public override async Task Delete(TModel model, bool force = false)
+        {
+            if (!force)
+            {
+                
+                if (model == null)
+                {
+                    Log.LogWarning($"Item with Id {model.Id} could not be found. It must already be deleted or the incorrect partition key was supplied.");
+                    return;
+                }
+
+                model.TimeToLive = Configuration.DeleteTTL; // set the ttl so it gets deleted after a configured amount of time by the db engine
+                Log.LogInformation($"Force Delete false, setting TTL to {Configuration.DeleteTTL}");
+
+                await Client.UpsertItemAsync(model);
+
+            }
+            else
+            {
+                Log.LogInformation("Force Delete was true. Automated Indexing operations will not be performed for this action.");
+                try
+                {
+                    await Client.DeleteItemAsync<TModel>(model.Id.ToString(), GetPartitionKey(model));
+                }
+                catch (CosmosException e)
+                {
+                    Log.LogWarning(e, "Error deleting item.");
+                    return; // don't care if there was an exception
+                }
+            }
         }
 
         public override async Task<Guid> Create(TModel model)
@@ -302,7 +336,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             try
             {
-                await Client.CreateItemAsync<TModel>(model, new PartitionKey(model.PartitionKey));
+                await Client.CreateItemAsync<TModel>(model);
                 return model.Id.Value;
             }
             catch (Exception ex)
@@ -422,6 +456,26 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 }
             }
         }
+
+        private Microsoft.Azure.Cosmos.PartitionKey GetPartitionKey(TModel model)
+        {
+            var builder = new PartitionKeyBuilder();
+            var props = model.GetType().GetProperties();
+
+            
+            var keyProperty = props.FirstOrDefault(f => f.Name == PartitionKey);
+            if (keyProperty == null)
+            {
+                throw new ArgumentException($"Key {PartitionKey} does not exist on object {model.GetType().Name}");
+            }
+            var value = keyProperty.GetValue(model) as string;
+            builder.Add(value);
+            
+
+            return builder.Build();
+        }
+
+        
 
         public GenericRepository(
             CosmosClient client,

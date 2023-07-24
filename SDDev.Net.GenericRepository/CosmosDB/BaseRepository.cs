@@ -111,8 +111,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <param name="id"></param>
         /// <returns></returns>
         public abstract Task Delete(Guid id, string partitionKey, bool force = false);
-
-
-
+        public abstract Task Delete(T model, bool force = false);
     }
 }

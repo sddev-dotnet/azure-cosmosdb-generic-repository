@@ -10,6 +10,6 @@ namespace SDDev.Net.GenericRepository.Tests.TestModels
 
         public bool IsDeleted { get; set; }
 
-
+        public string Prop1 { get; set; } = "Secondary";
     }
 }
