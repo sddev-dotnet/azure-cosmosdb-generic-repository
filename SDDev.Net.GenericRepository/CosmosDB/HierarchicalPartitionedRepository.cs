@@ -297,7 +297,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 {
                     throw new ArgumentException($"Key {property} does not exist on object {model.GetType().Name}");
                 }
-                var value = keyProperty.GetValue(model) as string;
+                var keyPropertyValue = keyProperty.GetValue(model);
+                var value = keyPropertyValue as string;
+
+                if (value == null && keyPropertyValue != null)
+                    value = keyPropertyValue.ToString();
+
                 builder.Add(value);
             }
 
