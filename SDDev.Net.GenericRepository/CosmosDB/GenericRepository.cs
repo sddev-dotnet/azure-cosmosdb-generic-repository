@@ -474,7 +474,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             return builder.Build();
         }
-
         
 
         public GenericRepository(

@@ -42,7 +42,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             if (string.IsNullOrEmpty(PartitionKey))
             {
-                PartitionKey = partitionKey ?? "/PartitionKey"; //ItemType is the property on base storable entity that is stored as the class name always
+                PartitionKey = partitionKey ?? "PartitionKey"; //ItemType is the property on base storable entity that is stored as the class name always
             }
             Client = client.GetContainer(DatabaseName, CollectionName);
         }

@@ -23,6 +23,7 @@ using SDDev.Net.GenericRepository.Contracts.Indexing;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.Indexing;
 using FluentAssertions;
+using System.Runtime.InteropServices;
 
 namespace SDDev.Net.GenericRepository.Tests
 {
@@ -105,7 +106,7 @@ namespace SDDev.Net.GenericRepository.Tests
                 var logger = x.GetService<ILogger<GenericRepository<BaseTestObject>>>();
                 var options = x.GetService<IOptions<CosmosDbConfiguration>>();
 
-                return new GenericRepository<BaseTestObject>(client, logger, options, "Testing", "kinectify");
+                return new GenericRepository<BaseTestObject>(client, logger, options, "Testing", "comply");
             });
             _services.AddScoped<IIndexedRepository<BaseTestObject, BaseTestIndexModel>, IndexedRepository<BaseTestObject, BaseTestIndexModel>>();
         }
@@ -275,6 +276,30 @@ namespace SDDev.Net.GenericRepository.Tests
             // Act
 
             await _sut.UpdateIndex(test.Id.Value, test.PartitionKey);
+
+            // Assert
+        }
+
+        [TestMethod]
+        public async Task WhenUpdatingBatch_ThenUpdated()
+        {
+            // Arrange
+            // create 10 items
+            await _sut.CreateOrUpdateIndex();
+            var items = new List<BaseTestObject>();
+            for(var i = 0; i < 10; i++)
+            {
+                var test = new BaseTestObject()
+                {
+                    Name = $"Force Delete Gone - {i + 1}"
+                };
+
+                await _sut.Create(test).ConfigureAwait(false);
+                items.Add(test);
+            }
+
+            // Act
+            await _sut.UpdateIndex(items);
 
             // Assert
         }

@@ -12,6 +12,7 @@ using SDDev.Net.GenericRepository.Contracts.Indexing;
 using SDDev.Net.GenericRepository.Contracts.Repository;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -25,7 +26,7 @@ namespace SDDev.Net.GenericRepository.Indexing
     /// <remarks>Uses the decorator pattern to add the capability of indexing documents on top of the IRepository interface</remarks>
     /// <typeparam name="T">The Entity object that is being stored in Cosmos</typeparam>
     /// <typeparam name="Y">The Index Model object that is being saved in Azure Cognitive Search</typeparam>
-    public class IndexedRepository<T, Y> : IIndexedRepository<T, Y> where Y : IBaseIndexModel where T: IStorableEntity
+    public class IndexedRepository<T, Y> : IIndexedRepository<T, Y> where Y : IBaseIndexModel where T : IStorableEntity
     {
         public SearchClient _searchClient;
         public SearchIndexClient _adminClient;
@@ -121,7 +122,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             var batch = IndexDocumentsBatch.Create(
                 IndexDocumentsAction.MergeOrUpload(indexModel)
             );
-            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            var resp = await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
 
             return result;
         }
@@ -272,6 +273,42 @@ namespace SDDev.Net.GenericRepository.Indexing
         }
 
         /// <summary>
+        /// This will update a list of items in the index using Azure Search batches. This will not modify data in the cosmosdb.
+        /// </summary>
+        /// <param name="entities"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public async Task UpdateIndex(IList<T> entities)
+        {
+            var mappedTask = entities.Select(x => PerformMap(x));
+
+            await Task.WhenAll(mappedTask).ConfigureAwait(false);
+
+            var actions = new List<IndexDocumentsAction<Y>>();
+            foreach(var task in mappedTask)
+            {
+                var model = await task;
+                var entity = entities.First(e => e.Id.ToString() == model.Id);
+
+                if(!entity.IsActive && _options.RemoveOnLogicalDelete)
+                {
+                    actions.Add(IndexDocumentsAction.Delete(model));
+                } else
+                {
+                    actions.Add(IndexDocumentsAction.MergeOrUpload(model));
+                }
+
+                
+            }
+
+            var updateBatch = IndexDocumentsBatch.Create(actions.ToArray());
+
+            await _searchClient.IndexDocumentsAsync(updateBatch).ConfigureAwait(false);
+
+
+        }
+
+        /// <summary>
         /// Perform your own mapping instead of using our mapping logic
         /// </summary>
         /// <remarks>assumes that you have performed all of the mapping required outside of this operation</remarks>
@@ -401,6 +438,5 @@ namespace SDDev.Net.GenericRepository.Indexing
             return indexModel;
         }
 
-        
     }
 }
