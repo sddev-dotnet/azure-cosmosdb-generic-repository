@@ -487,5 +487,17 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             var defaultInstance = Activator.CreateInstance<TModel>();
             _defaultPartitionKey = defaultInstance.PartitionKey;
         }
+
+        public GenericRepository(
+            IContainerClient client,
+            ILogger<BaseRepository<TModel>> log,
+            IOptions<CosmosDbConfiguration> config,
+            string collectionName = null,
+            string databaseName = null,
+            string partitionKey = null) : base(client, log, config, collectionName, databaseName, partitionKey)
+            {
+                var defaultInstance = Activator.CreateInstance<TModel>();
+                _defaultPartitionKey = defaultInstance.PartitionKey;
+            }
     }
 }

@@ -69,6 +69,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             services.AddTransient(typeof(IRepository<>), typeof(GenericRepository<>));
             services.Configure<CosmosDbConfiguration>(configuration.GetSection("CosmosDb"));
             services.AddTransient<IMigrator, CosmosDbMigrator>();
+            services.AddScoped<IContainerClient, CosmosDbClient>();
         }
 
 
