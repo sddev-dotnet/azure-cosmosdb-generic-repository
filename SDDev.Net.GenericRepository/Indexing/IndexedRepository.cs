@@ -281,6 +281,12 @@ namespace SDDev.Net.GenericRepository.Indexing
         public async Task UpdateIndex(IList<T> entities, int maxDegreeOfParallelism = 1)
         {
             Validate();
+
+            if (maxDegreeOfParallelism <= 0)
+            {
+                throw new System.InvalidOperationException("maxDegreeOfParallelism must be a positive value.");
+            }
+
             Parallel.ForEach(entities, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async item =>
             {
                 if (item.IsActive == false)
