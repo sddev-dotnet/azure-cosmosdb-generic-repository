@@ -58,7 +58,7 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
 
         Task UpdateIndex(Guid id, string partitionKey = null);
 
-        Task UpdateIndex(IList<T> entities);
+        Task UpdateIndex(IList<T> entities, int maxDegreeOfParallelism = 1);
 
         Task<IndexSearchResult<Y>> Search(SearchRequest request);
     }

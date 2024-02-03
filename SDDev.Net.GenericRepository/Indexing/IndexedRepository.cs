@@ -278,34 +278,32 @@ namespace SDDev.Net.GenericRepository.Indexing
         /// <param name="entities"></param>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public async Task UpdateIndex(IList<T> entities)
+        public async Task UpdateIndex(IList<T> entities, int maxDegreeOfParallelism = 1)
         {
-            var mappedTask = entities.Select(x => PerformMap(x));
+            Validate();
 
-            await Task.WhenAll(mappedTask).ConfigureAwait(false);
-
-            var actions = new List<IndexDocumentsAction<Y>>();
-            foreach(var task in mappedTask)
+            if (maxDegreeOfParallelism <= 0)
             {
-                var model = await task;
-                var entity = entities.First(e => e.Id.ToString() == model.Id);
-
-                if(!entity.IsActive && _options.RemoveOnLogicalDelete)
-                {
-                    actions.Add(IndexDocumentsAction.Delete(model));
-                } else
-                {
-                    actions.Add(IndexDocumentsAction.MergeOrUpload(model));
-                }
-
-                
+                throw new System.InvalidOperationException("maxDegreeOfParallelism must be a positive value.");
             }
 
-            var updateBatch = IndexDocumentsBatch.Create(actions.ToArray());
-
-            await _searchClient.IndexDocumentsAsync(updateBatch).ConfigureAwait(false);
-
-
+            Parallel.ForEach(entities, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async item =>
+            {
+                if (item.IsActive == false)
+                {
+                    if (_options.RemoveOnLogicalDelete)
+                    {
+                        var deleteModel = _mapper.Map<Y>(item);
+                        // Create a batch to delete the document from Azure Search
+                        var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
+                        await _searchClient.IndexDocumentsAsync(deleteBatch).ConfigureAwait(false);
+                    }
+                }
+                // map to index and  upload to Azure Search
+                var indexModel = await PerformMap(item).ConfigureAwait(false);
+                var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.MergeOrUpload(indexModel));
+                await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            });
         }
 
         /// <summary>
