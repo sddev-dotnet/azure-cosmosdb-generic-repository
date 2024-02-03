@@ -46,6 +46,35 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
             Client = client.GetContainer(DatabaseName, CollectionName);
         }
+        protected BaseRepository(
+        IContainerClient containerClient,
+        ILogger<BaseRepository<T>> log,
+        IOptions<CosmosDbConfiguration> config,
+        string collectionName = null,
+        string databaseName = null,
+        string partitionKey = null)
+        {
+            Log = log;
+            DatabaseName = databaseName;
+            Configuration = config.Value;
+            if (string.IsNullOrEmpty(DatabaseName))
+            {
+                DatabaseName = config.Value.DefaultDatabaseName;
+            }
+            if (string.IsNullOrEmpty(CollectionName))
+            {
+                //If a Collection Name is not set during IOC registration,
+                //allow it to be passed into the constructor
+                //and if its not, use the name of the object
+                CollectionName = collectionName ?? typeof(T).Name;
+            }
+            if (string.IsNullOrEmpty(PartitionKey))
+            {
+                PartitionKey = partitionKey ?? "PartitionKey"; //ItemType is the property on base storable entity that is stored as the class name always
+            }
+            //Client = client.GetContainer(DatabaseName, CollectionName);
+            Client = containerClient.GetClient(CollectionName);
+        }
 
         /// <summary>
         /// Logger for outputting messages within the repository
