@@ -287,19 +287,20 @@ namespace SDDev.Net.GenericRepository.Tests
             // create 10 items
             await _sut.CreateOrUpdateIndex();
             var items = new List<BaseTestObject>();
-            for(var i = 0; i < 10; i++)
+            for(var i = 0; i < 1000; i++)
             {
                 var test = new BaseTestObject()
                 {
-                    Name = $"Force Delete Gone - {i + 1}"
+                    Name = $"Force Delete Gone - {i + 1}",
+                    Id = Guid.NewGuid()
                 };
 
-                await _sut.Create(test).ConfigureAwait(false);
                 items.Add(test);
+                
             }
 
             // Act
-            await _sut.UpdateIndex(items);
+            await _sut.UpdateIndex(items, 5);
 
             // Assert
         }

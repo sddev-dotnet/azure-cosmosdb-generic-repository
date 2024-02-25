@@ -11,6 +11,7 @@ using SDDev.Net.GenericRepository.Contracts.BaseEntity;
 using SDDev.Net.GenericRepository.Contracts.Indexing;
 using SDDev.Net.GenericRepository.Contracts.Repository;
 using SDDev.Net.GenericRepository.Contracts.Search;
+using SDDev.Net.GenericRepository.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -287,21 +288,39 @@ namespace SDDev.Net.GenericRepository.Indexing
                 throw new System.InvalidOperationException("maxDegreeOfParallelism must be a positive value.");
             }
 
-            Parallel.ForEach(entities, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async item =>
+            var groups = entities.Partition(900); // Azure Search has a limit of 1000 documents per batch, leave a little space for margin of error
+
+            Parallel.ForEach(groups, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async group =>
             {
-                if (item.IsActive == false)
+
+                var tasks = new List<Task<Y>>();
+                var actions = new List<IndexDocumentsAction<Y>>();
+                foreach(var item in group)
                 {
-                    if (_options.RemoveOnLogicalDelete)
+
+                    if (item.IsActive == false)
                     {
-                        var deleteModel = _mapper.Map<Y>(item);
-                        // Create a batch to delete the document from Azure Search
-                        var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
-                        await _searchClient.IndexDocumentsAsync(deleteBatch).ConfigureAwait(false);
+                        if (_options.RemoveOnLogicalDelete)
+                        {
+                            var deleteModel = _mapper.Map<Y>(item);
+                            // Create a batch to delete the document from Azure Search
+                            actions.Add(IndexDocumentsAction.Delete(deleteModel));
+                            continue;       
+                        }
                     }
+
+                    tasks.Add(PerformMap(item));
                 }
+
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+                foreach(var task in tasks)
+                {
+                    var item = await task;
+                    actions.Add(IndexDocumentsAction.MergeOrUpload(item));
+                }
+
                 // map to index and  upload to Azure Search
-                var indexModel = await PerformMap(item).ConfigureAwait(false);
-                var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.MergeOrUpload(indexModel));
+                var batch = IndexDocumentsBatch.Create(actions.ToArray());
                 await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
             });
         }
