@@ -321,7 +321,30 @@ namespace SDDev.Net.GenericRepository.Indexing
 
                 // map to index and  upload to Azure Search
                 var batch = IndexDocumentsBatch.Create(actions.ToArray());
-                await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+
+                foreach (var action in actions)
+                {
+                    batch.Actions.Add(action);
+                }
+
+                try
+                {
+                    var result = await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+                    foreach(var resultItem in result.Value.Results)
+                    {
+                        // logs each 
+                        if(!resultItem.Succeeded)
+                        {
+                            _logger.LogError("Failed to update index for item {0}. Status: {1}| Message: {2}", resultItem.Key, resultItem.Status, resultItem.ErrorMessage);
+                        }
+                    }
+                }
+                catch (RequestFailedException ex)
+                {
+                   // this is a failure of the whole batch, log and rethrow
+                   _logger.LogError(ex, "Failed to update index for batch");
+                    throw;
+                }
             });
         }
 

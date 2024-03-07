@@ -2,6 +2,7 @@
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
@@ -70,6 +71,13 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             services.Configure<CosmosDbConfiguration>(configuration.GetSection("CosmosDb"));
             services.AddTransient<IMigrator, CosmosDbMigrator>();
             services.AddScoped<IContainerClient, CosmosDbClient>();
+
+            services.AddTransient<IRepository<MigrationResult>, GenericRepository<MigrationResult>>(x => {
+                return new GenericRepository<MigrationResult>(x.GetService<IContainerClient>(), 
+                    x.GetService<ILogger<GenericRepository<MigrationResult>>>(), 
+                    x.GetService<IOptions<CosmosDbConfiguration>>(), 
+                    "Migrations");
+            });
         }
 
 

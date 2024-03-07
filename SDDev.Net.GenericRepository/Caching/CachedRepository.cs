@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.Caching
 {
-    public class CachedRepository<T> : GenericRepository<T> where T : class, IStorableEntity
+    public class CachedRepository<T> : ICachedRepository<T> where T : class, IStorableEntity
     {
         protected int cacheSeconds = 60;
         protected bool refreshCache = true;
@@ -26,25 +26,23 @@ namespace SDDev.Net.GenericRepository.Caching
         private IDistributedCache _cache;
 
         public CachedRepository(
-            CosmosClient client, 
             ILogger<BaseRepository<T>> log, 
-            IOptions<CosmosDbConfiguration> config, 
+            IOptions<CosmosDbConfiguration> config,
+            IRepository<T> repository,
             IDistributedCache cache,
             int cacheSeconds = 60,
-            bool refreshCache = true,
-            string collectionName = null, 
-            string databaseName = null, 
-            string partitionKey = null) : base(client, log, config, collectionName, databaseName, partitionKey)
+            bool refreshCache = true
+            ) 
         {
             _cache = cache;
             this.cacheSeconds = cacheSeconds;
             this.refreshCache = refreshCache;
-
+            _repo = repository;
         }
 
-        public override async Task<Guid> Create(T model)
+        public async Task<Guid> Create(T model)
         {
-            var item = await base.Create(model);
+            var item = await _repo.Create(model);
 
             var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds));
             await _cache.SetAsync(model.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model)), options);
@@ -52,13 +50,18 @@ namespace SDDev.Net.GenericRepository.Caching
             return item;
         }
 
-        public override async Task Delete(Guid id, string partitionKey, bool force = false)
+        public async Task Delete(Guid id, string partitionKey, bool force = false)
         {
             await _cache.RemoveAsync(id.ToString());
-            await base.Delete(id, partitionKey, force);
+            await _repo.Delete(id, partitionKey, force);
         }
 
-        public override async Task<T> Get(Guid id, string partitionKey = null)
+        public Task Delete(T model, bool force = false)
+        {
+            return Delete(model.Id.Value, model.PartitionKey, force);
+        }
+
+        public async Task<T> Get(Guid id, string partitionKey = null)
         {
             var item = await _cache.GetStringAsync(id.ToString());
             if(item != null)
@@ -71,7 +74,7 @@ namespace SDDev.Net.GenericRepository.Caching
                 var entity = JsonConvert.DeserializeObject<T>(item);
                 return entity;
             }
-            var result = await base.Get(id, partitionKey);
+            var result = await _repo.Get(id, partitionKey);
 
             if(result != null)
             {
@@ -80,19 +83,40 @@ namespace SDDev.Net.GenericRepository.Caching
             }
             return result;
         }
+        public Task<ISearchResult<T>> Get(Expression<Func<T, bool>> predicate, ISearchModel model)
+        {
+            return _repo.Get(predicate, model);
+        }
 
-        public override async Task<Guid> Update(T model)
+        public Task<ISearchResult<T>> Get(string query, ISearchModel model)
+        {
+            return _repo.Get(query, model);
+        }
+
+        public Task<ISearchResult<T>> GetAll(Expression<Func<T, bool>> predicate, ISearchModel model)
+        {
+            return _repo.GetAll(predicate, model);
+        }
+
+        public async Task<Guid> Update(T model)
         {
             var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds));
             await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model), options);
 
-            return await base.Update(model);
+            return await _repo.Update(model);
         }
 
-        public override async Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false)
+        public async Task<Guid> Upsert(T model)
+        {
+            var options = new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds));
+            await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model), options);
+            return await _repo.Upsert(model);
+        }
+
+        public async Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false)
         {
             
-            var result =  await base.FindOne(predicate, partitionKey, singleResult).ConfigureAwait(false);
+            var result =  await _repo.FindOne(predicate, partitionKey, singleResult).ConfigureAwait(false);
 
 
             if (result != null)
@@ -104,5 +128,46 @@ namespace SDDev.Net.GenericRepository.Caching
 
             return result;
         }
+
+        public async Task Evict(string key)
+        {
+            await _cache.RemoveAsync(key);
+        }
+
+        public Task Cache<T1>(T1 entity, string key)
+        {
+            return _cache.SetAsync(
+                key, 
+                Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entity)), 
+                new DistributedCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds))
+            );
+        }
+
+        public async Task<Model> Retrieve<Model>(string id)
+        {
+            var item = await _cache.GetStringAsync(id);
+            if (item != null)
+            {
+                if (refreshCache)
+                {
+                    // reset the cache expiration because we retrieved the object
+                    _cache.Refresh(id.ToString());
+                }
+                Model entity = JsonConvert.DeserializeObject<Model>(item);
+                return entity;
+            }
+
+            return default(Model);
+        }
+
+        public Task<dynamic> Retrieve(string key)
+        {
+            return Retrieve<dynamic>(key);
+        }
+
+
+       
+
+        
     }
 }

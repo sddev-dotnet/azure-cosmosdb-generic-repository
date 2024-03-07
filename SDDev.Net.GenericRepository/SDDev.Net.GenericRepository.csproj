@@ -31,6 +31,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SDDev.Net.GenericRepository.Contracts\SDDev.Net.GenericRepository.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="README.md">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

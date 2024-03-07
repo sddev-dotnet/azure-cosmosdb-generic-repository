@@ -1,6 +1,7 @@
 ﻿using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Azure.Cosmos.Serialization.HybridRow.Schemas;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SDDev.Net.GenericRepository.Contracts.BaseEntity;
@@ -474,8 +475,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             return builder.Build();
         }
-        
 
+        [ActivatorUtilitiesConstructor]
         public GenericRepository(
             CosmosClient client,
             ILogger<BaseRepository<TModel>> log,

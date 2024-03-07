@@ -77,7 +77,7 @@ namespace SDDev.Net.GenericRepository.Tests
         public async Task TestInit()
         {
 
-            _testRepo = new TestRepo(_client, _logger, _cosmos, "TestContainer");
+            _testRepo = new TestRepo(_client, _logger, _cosmos, "Testing");
         }
 
         [TestMethod]

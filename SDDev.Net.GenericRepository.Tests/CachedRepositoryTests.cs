@@ -75,7 +75,8 @@ namespace SDDev.Net.GenericRepository.Tests
             var opts = new MemoryDistributedCacheOptions();
             var options = new OptionsWrapper<MemoryDistributedCacheOptions>(opts);
             _cache = new MemoryDistributedCache(options);
-            _sut = new CachedRepository<TestObject>(_client, _logger, _cosmos, _cache,  collectionName: "TestContainer", databaseName: "dhr");
+            var genericRepo = new GenericRepository<TestObject>(_client, _logger, _cosmos, "Testing");
+            _sut = new CachedRepository<TestObject>( _logger, _cosmos, genericRepo, _cache);
         }
 
         [TestMethod]
@@ -139,6 +140,57 @@ namespace SDDev.Net.GenericRepository.Tests
 
 
             testResult.Prop1.Should().Be("Test Changed");
+        }
+
+        // Create a test method that tests the ICachedRepository CacheItem method
+        [TestMethod]
+        public async Task WhenCacheItem_ThenItemCached()
+        {
+            // Arrange
+            var item = new TestObject() { Key = "test", Prop1 = "Testing" };
+            var cacheItem = Guid.NewGuid();
+
+            // Act
+            await _sut.Cache(item, cacheItem.ToString());
+
+            // Assert
+            var result = await _cache.GetStringAsync(cacheItem.ToString());
+            var testResult = JsonConvert.DeserializeObject<TestObject>(result);
+
+            testResult.Prop1.Should().Be("Testing");
+        }
+
+        // Create a test method that retrieves an item from the cache using the Retrieve function
+        [TestMethod]
+        public async Task WhenRetrieveItem_ThenItemRetrieved()
+        {
+            // Arrange
+            var item = new TestObject() { Key = "test", Prop1 = "Testing" };
+            var cacheItem = Guid.NewGuid();
+            await _sut.Cache(item, cacheItem.ToString());
+
+            // Act
+            var result = await _sut.Retrieve<TestObject>(cacheItem.ToString());
+
+            // Assert
+            result.Prop1.Should().Be("Testing");
+        }
+
+        // Create a test method that removes an item from the cache using the Evict function
+        [TestMethod]
+        public async Task WhenEvictItem_ThenItemRemoved()
+        {
+            // Arrange
+            var item = new TestObject() { Key = "test", Prop1 = "Testing" };
+            var cacheItem = Guid.NewGuid();
+            await _sut.Cache(item, cacheItem.ToString());
+
+            // Act
+            await _sut.Evict(cacheItem.ToString());
+
+            // Assert
+            var result = await _cache.GetStringAsync(cacheItem.ToString());
+            result.Should().BeNull();
         }
     }
 }
