@@ -24,6 +24,7 @@ using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.Indexing;
 using FluentAssertions;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 namespace SDDev.Net.GenericRepository.Tests
 {
@@ -285,9 +286,10 @@ namespace SDDev.Net.GenericRepository.Tests
         {
             // Arrange
             // create 10 items
+            var sw = Stopwatch.StartNew();
             await _sut.CreateOrUpdateIndex();
             var items = new List<BaseTestObject>();
-            for(var i = 0; i < 1000; i++)
+            for(var i = 0; i < 10000; i++)
             {
                 var test = new BaseTestObject()
                 {
@@ -301,8 +303,10 @@ namespace SDDev.Net.GenericRepository.Tests
 
             // Act
             await _sut.UpdateIndex(items, 5);
+            sw.Stop();
 
             // Assert
+
         }
     }
 }

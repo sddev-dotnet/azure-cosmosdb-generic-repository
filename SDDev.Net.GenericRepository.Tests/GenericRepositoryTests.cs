@@ -98,12 +98,13 @@ namespace SDDev.Net.GenericRepository.Tests
                 {
                     Number = 8,
                     Prop1 = "ChildObject"
-                }
+                },
+                ExampleProperty = "Example from Conf."
             };
 
 
             //Act
-            var result = await _testRepo.Upsert(item);
+            var result = await _testRepo.FindOne(x => x.ExampleProperty.Contains("Example"));
 
 
             //Assert

@@ -14,6 +14,8 @@ namespace SDDev.Net.GenericRepository.Tests.TestModels
 
         public TestObject ChildObject { get; set; }
 
+        public string ExampleProperty { get; set; }
+
         public Guid? UUID { get; set; }
 
         public string Key { get; set; } = "Primary";
