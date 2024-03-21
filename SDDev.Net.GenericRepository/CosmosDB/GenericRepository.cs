@@ -238,7 +238,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
                 }
 
-                await Client.UpsertItemAsync<TModel>(model);
+                var resp = await Client.UpsertItemAsync<TModel>(model);
+                Log.LogDebug($"CosmosDb upsert. RU cost:{resp.RequestCharge}");
                 return model.Id.Value;
             }
             catch (CosmosException e)
@@ -266,8 +267,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 item.TimeToLive = Configuration.DeleteTTL; // set the ttl so it gets deleted after a configured amount of time by the db engine
                 Log.LogInformation($"Force Delete false, setting TTL to {Configuration.DeleteTTL}");
 
-                await Client.UpsertItemAsync(item);
-
+                var resp = await Client.UpsertItemAsync(item);
+                Log.LogDebug($"CosmosDb point read delete. RU cost:{resp.RequestCharge}");
             }
             else
             {
@@ -300,7 +301,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 model.TimeToLive = Configuration.DeleteTTL; // set the ttl so it gets deleted after a configured amount of time by the db engine
                 Log.LogInformation($"Force Delete false, setting TTL to {Configuration.DeleteTTL}");
 
-                await Client.UpsertItemAsync(model);
+                var resp = await Client.UpsertItemAsync(model);
+                Log.LogDebug($"CosmosDb query delete. RU cost:{resp.RequestCharge}");
 
             }
             else
@@ -337,7 +339,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             try
             {
-                await Client.CreateItemAsync<TModel>(model);
+                var resp = await Client.CreateItemAsync<TModel>(model);
+                Log.LogDebug($"CosmosDb create. RU cost:{resp.RequestCharge}");
                 return model.Id.Value;
             }
             catch (Exception ex)
@@ -357,7 +360,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
                 }
 
-                await Client.ReplaceItemAsync(model, model.Id.ToString());
+                var resp = await Client.ReplaceItemAsync(model, model.Id.ToString());
+                Log.LogDebug($"CosmosDb update. RU cost:{resp.RequestCharge}");
 
                 return model.Id.Value;
             }
