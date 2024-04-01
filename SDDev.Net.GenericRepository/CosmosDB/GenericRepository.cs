@@ -114,6 +114,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             var result = query.ToFeedIterator();
             var res = await result.ReadNextAsync();
+
+            if (Configuration.PopulateIndexMetrics)
+            {
+                Log.LogWarning("Index Metrics {metrics}", res.IndexMetrics);
+            }
+
             if (res.RequestCharge < 100)
                 Log.LogInformation($"Request used {res.RequestCharge} RUs.| Query: {result}");
             else if (res.RequestCharge < 200)
@@ -204,6 +210,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             var result = q.ToFeedIterator();
 
             var res = await result.ReadNextAsync();
+
+            if (Configuration.PopulateIndexMetrics)
+            {
+                Log.LogWarning("Index Metrics {metrics}", res.IndexMetrics);
+            }
+
             if (res.RequestCharge < 100)
                 Log.LogInformation($"Request used {res.RequestCharge} RUs.| Query: {result}");
             else if (res.RequestCharge < 200)
@@ -431,7 +443,14 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     var iterator = query.ToFeedIterator();
                     while (iterator.HasMoreResults)
                     {
-                        items.AddRange(await iterator.ReadNextAsync());
+                        var res = await iterator.ReadNextAsync();
+
+                        if (Configuration.PopulateIndexMetrics)
+                        {
+                            Log.LogWarning("Index Metrics {metrics}", res.IndexMetrics);
+                        }
+
+                        items.AddRange(res);
                     }
 
                     return items.FirstOrDefault();
