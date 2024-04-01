@@ -134,7 +134,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             if (string.IsNullOrEmpty(partitionKey))
                 return await FindOne(x => x.Id == id).ConfigureAwait(false);
 
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = 2 };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = 2,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
             var partitionKeyQuery = $"{PartitionKeys.First()}=\"{partitionKey}\"";
             var query = Client
                         .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
@@ -185,7 +189,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         }
 
         public override Task<ISearchResult<TModel>> Get(string query, ISearchModel model){
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = model.PageSize };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = model.PageSize,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
 
             if (!string.IsNullOrEmpty(model.ContinuationToken))
             {
@@ -204,7 +212,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
         public override Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model)
         {
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = model.PageSize };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = model.PageSize,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
             
             if (!string.IsNullOrEmpty(model.ContinuationToken))
             {

@@ -13,5 +13,6 @@
         public string ConnectionString { get; set; }
 
         public bool EnableBulkQuerying { get; set; } = true;
+        public bool PopulateIndexMetrics { get; set; } = false;
     }
 }

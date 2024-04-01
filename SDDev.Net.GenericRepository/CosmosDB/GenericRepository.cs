@@ -31,7 +31,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
             try
             {
-
                 if(string.IsNullOrEmpty(partitionKey))
                     return await FindOne(x => x.Id == id).ConfigureAwait(false);
                 
@@ -62,7 +61,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <returns></returns>
         public override async Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model)
         {
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = model.PageSize };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = model.PageSize,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
+
             if (!string.IsNullOrEmpty(model.PartitionKey))
                 queryOptions.PartitionKey = new PartitionKey(model.PartitionKey);
             else
@@ -146,7 +150,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <returns></returns>
         public async override Task<ISearchResult<TModel>> Get(string query, ISearchModel model)
         {
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = model.PageSize };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = model.PageSize,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
 
             if (!string.IsNullOrEmpty(model.PartitionKey))
                 queryOptions.PartitionKey = new PartitionKey(model.PartitionKey);
@@ -403,7 +411,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
         public override async Task<TModel> FindOne(Expression<Func<TModel, bool>> predicate, string partitionKey = null, bool singleResult = false)
         {
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = 2 };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = 2,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
 
             if (!singleResult)
             {
