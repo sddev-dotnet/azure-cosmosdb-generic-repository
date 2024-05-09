@@ -441,16 +441,22 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                         .AsQueryable();
                     var items = new List<TModel>();
                     var iterator = query.ToFeedIterator();
+                    string indexMetrics = null;
                     while (iterator.HasMoreResults)
                     {
                         var res = await iterator.ReadNextAsync();
 
-                        if (Configuration.PopulateIndexMetrics)
+                        if (Configuration.PopulateIndexMetrics && indexMetrics == null)
                         {
-                            Log.LogWarning("Index Metrics {metrics}", res.IndexMetrics);
+                            indexMetrics = res.IndexMetrics;
                         }
 
                         items.AddRange(res);
+                    }
+
+                    if (indexMetrics != null)
+                    {
+                        Log.LogWarning("Index Metrics {metrics}", indexMetrics);
                     }
 
                     return items.FirstOrDefault();
@@ -463,7 +469,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     throw;
                 }
             }
-                
             else
             {
                 try
@@ -476,9 +481,22 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                         .AsQueryable();
                     var items = new List<TModel>();
                     var iterator = query.ToFeedIterator();
+                    string indexMetrics = null;
                     while (iterator.HasMoreResults)
                     {
-                        items.AddRange(await iterator.ReadNextAsync());
+                        var response = await iterator.ReadNextAsync();
+
+                        if (Configuration.PopulateIndexMetrics && indexMetrics == null)
+                        {
+                            indexMetrics = response.IndexMetrics;
+                        }
+
+                        items.AddRange(response);
+                    }
+
+                    if (indexMetrics != null)
+                    {
+                        Log.LogWarning("Index Metrics {metrics}", indexMetrics);
                     }
 
                     return items.SingleOrDefault();
