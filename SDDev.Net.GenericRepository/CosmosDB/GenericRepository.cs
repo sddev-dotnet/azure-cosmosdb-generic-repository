@@ -31,7 +31,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
             try
             {
-
                 if(string.IsNullOrEmpty(partitionKey))
                     return await FindOne(x => x.Id == id).ConfigureAwait(false);
                 
@@ -62,7 +61,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <returns></returns>
         public override async Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model)
         {
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = model.PageSize };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = model.PageSize,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
+
             if (!string.IsNullOrEmpty(model.PartitionKey))
                 queryOptions.PartitionKey = new PartitionKey(model.PartitionKey);
             else
@@ -110,6 +114,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             var result = query.ToFeedIterator();
             var res = await result.ReadNextAsync();
+
+            if (Configuration.PopulateIndexMetrics)
+            {
+                Log.LogWarning("Index Metrics {metrics}", res.IndexMetrics);
+            }
+
             if (res.RequestCharge < 100)
                 Log.LogInformation($"Request used {res.RequestCharge} RUs.| Query: {result}");
             else if (res.RequestCharge < 200)
@@ -146,7 +156,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <returns></returns>
         public async override Task<ISearchResult<TModel>> Get(string query, ISearchModel model)
         {
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = model.PageSize };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = model.PageSize,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
 
             if (!string.IsNullOrEmpty(model.PartitionKey))
                 queryOptions.PartitionKey = new PartitionKey(model.PartitionKey);
@@ -196,6 +210,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             var result = q.ToFeedIterator();
 
             var res = await result.ReadNextAsync();
+
+            if (Configuration.PopulateIndexMetrics)
+            {
+                Log.LogWarning("Index Metrics {metrics}", res.IndexMetrics);
+            }
+
             if (res.RequestCharge < 100)
                 Log.LogInformation($"Request used {res.RequestCharge} RUs.| Query: {result}");
             else if (res.RequestCharge < 200)
@@ -403,7 +423,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
         public override async Task<TModel> FindOne(Expression<Func<TModel, bool>> predicate, string partitionKey = null, bool singleResult = false)
         {
-            var queryOptions = new QueryRequestOptions() { MaxItemCount = 2 };
+            var queryOptions = new QueryRequestOptions()
+            {
+                MaxItemCount = 2,
+                PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
+            };
 
             if (!singleResult)
             {
@@ -417,9 +441,22 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                         .AsQueryable();
                     var items = new List<TModel>();
                     var iterator = query.ToFeedIterator();
+                    string indexMetrics = null;
                     while (iterator.HasMoreResults)
                     {
-                        items.AddRange(await iterator.ReadNextAsync());
+                        var res = await iterator.ReadNextAsync();
+
+                        if (Configuration.PopulateIndexMetrics && indexMetrics == null)
+                        {
+                            indexMetrics = res.IndexMetrics;
+                        }
+
+                        items.AddRange(res);
+                    }
+
+                    if (indexMetrics != null)
+                    {
+                        Log.LogWarning("Index Metrics {metrics}", indexMetrics);
                     }
 
                     return items.FirstOrDefault();
@@ -432,7 +469,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     throw;
                 }
             }
-                
             else
             {
                 try
@@ -445,9 +481,22 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                         .AsQueryable();
                     var items = new List<TModel>();
                     var iterator = query.ToFeedIterator();
+                    string indexMetrics = null;
                     while (iterator.HasMoreResults)
                     {
-                        items.AddRange(await iterator.ReadNextAsync());
+                        var response = await iterator.ReadNextAsync();
+
+                        if (Configuration.PopulateIndexMetrics && indexMetrics == null)
+                        {
+                            indexMetrics = response.IndexMetrics;
+                        }
+
+                        items.AddRange(response);
+                    }
+
+                    if (indexMetrics != null)
+                    {
+                        Log.LogWarning("Index Metrics {metrics}", indexMetrics);
                     }
 
                     return items.SingleOrDefault();
