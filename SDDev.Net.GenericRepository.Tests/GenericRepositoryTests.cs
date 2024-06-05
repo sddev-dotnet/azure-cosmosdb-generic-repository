@@ -448,6 +448,67 @@ namespace SDDev.Net.GenericRepository.Tests
 
         [TestMethod]
         [TestCategory("INTEGRATION")]
+        public async Task WhenQueryingCount_ThenCountIsReturned_Test()
+        {
+            // Arrange
+            var logger = _factory.CreateLogger<GenericRepository<TestObject>>();
+            var repo = new GenericRepository<TestObject>(_client, logger, _cosmos, "Testing");
+
+            var testObjectCount = Random.Shared.Next(1, 10);
+
+            var key = Guid.NewGuid().ToString();
+            var testObjects = Enumerable.Range(1, testObjectCount)
+                .Select(x => new TestObject()
+                {
+                    Key = key,
+                });
+
+            foreach (var testObject in testObjects)
+            {
+                await repo.Upsert(testObject);
+            }
+
+            // Act
+            var count = await repo.Count(x => true, key);
+
+            // Assert
+            count.Should().Be(testObjectCount);
+        }
+
+        [TestMethod]
+        [TestCategory("INTEGRATION")]
+        public async Task WhenQueryCountWithExpression_ThenCountIsReturned_Test()
+        {
+            // Arrange
+            var logger = _factory.CreateLogger<GenericRepository<TestObject>>();
+            var repo = new GenericRepository<TestObject>(_client, logger, _cosmos, "Testing");
+
+            var key = Guid.NewGuid().ToString();
+            var expectedTestObject = new TestObject()
+            {
+                ExampleProperty = Guid.NewGuid().ToString(),
+                Key = key,
+            };
+            var extraTestObject = new TestObject()
+            {
+                ExampleProperty = Guid.NewGuid().ToString(),
+                Key = key,
+            };
+
+            await repo.Upsert(expectedTestObject);
+            await repo.Upsert(extraTestObject);
+
+            // Act
+            var count = await repo.Count(
+                x => x.ExampleProperty == expectedTestObject.ExampleProperty,
+                partitionKey: key);
+
+            // Assert
+            count.Should().Be(1);
+        }
+
+        [TestMethod]
+        [TestCategory("INTEGRATION")]
         public async Task WhenUsingAnotherTestObject_ThenYouCanSearch_Test()
         {
 

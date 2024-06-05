@@ -1,6 +1,5 @@
 ﻿using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Linq;
-using Microsoft.Azure.Cosmos.Serialization.HybridRow.Schemas;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,7 +7,6 @@ using SDDev.Net.GenericRepository.Contracts.BaseEntity;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.CosmosDB.Utilities;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Dynamic.Core;
@@ -31,9 +29,9 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
             try
             {
-                if(string.IsNullOrEmpty(partitionKey))
+                if (string.IsNullOrEmpty(partitionKey))
                     return await FindOne(x => x.Id == id).ConfigureAwait(false);
-                
+
                 var resp = await Client.ReadItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey));
                 Log.LogDebug($"CosmosDb query. RU cost:{resp.RequestCharge}");
 
@@ -81,13 +79,13 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
 
-            var query= Client
+            var query = Client
                 .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, continuationToken: model.ContinuationToken)
                 .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
                 .Where(predicate);
-                //.ToFeedIterator();
+            //.ToFeedIterator();
 
-            if(!string.IsNullOrEmpty(model.SortByField))
+            if (!string.IsNullOrEmpty(model.SortByField))
             {
                 var order = $"{model.SortByField} {(model.SortAscending ? "" : "DESC")}".Trim();
                 query = query.OrderBy(order);
@@ -105,7 +103,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 }
             }
 
-            if(model.Offset > 0)
+            if (model.Offset > 0)
             {
                 query = query.Skip(model.Offset).Take(model.PageSize);
             }
@@ -117,7 +115,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             if (Configuration.PopulateIndexMetrics)
             {
-                Log.LogWarning("Index Metrics {metrics}", res.IndexMetrics);
+                Log.LogWarning("Index Metrics\n{metrics}", res.IndexMetrics);
             }
 
             if (res.RequestCharge < 100)
@@ -239,6 +237,26 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             return response;
         }
 
+        public async Task<int> Count(Expression<Func<TModel, bool>> predicate, string partitionKey = null)
+        {
+            var queryOptions = new QueryRequestOptions();
+
+            if (!string.IsNullOrEmpty(partitionKey))
+                queryOptions.PartitionKey = new PartitionKey(partitionKey);
+            else
+                Log.LogWarning($"Enabling Cross-Partition Query in repo {this.GetType().Name}");
+
+            var query = Client
+                .GetItemLinqQueryable<TModel>(requestOptions: queryOptions)
+                .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                .Where(predicate)
+                .Select(x => x.Id);
+
+            var count = await query.CountAsync();
+
+            return count;
+        }
+
         /// <summary>
         /// This will perform a Replace, finding the document by Id and then replacing it with the document that is passed in
         /// </summary>
@@ -273,7 +291,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
 
             Log.LogInformation($"Deleting document {id} from Database {DatabaseName} Collection {CollectionName}");
-            
+
 
             if (!force)
             {
@@ -311,7 +329,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
             if (!force)
             {
-                
+
                 if (model == null)
                 {
                     Log.LogWarning($"Item with Id {model.Id} could not be found. It must already be deleted or the incorrect partition key was supplied.");
@@ -350,7 +368,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             if (model is IAuditableEntity)
             {
                 var auditable = (IAuditableEntity)model;
-                if(auditable.AuditMetadata == null)
+                if (auditable.AuditMetadata == null)
                     auditable.AuditMetadata = new AuditMetadata();
 
                 ((IAuditableEntity)model).AuditMetadata.CreatedDateTime = DateTime.UtcNow;
@@ -411,14 +429,15 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 };
 
                 return searchResult;
-            } catch (CosmosException ex)
+            }
+            catch (CosmosException ex)
             {
                 if (ex.StatusCode == HttpStatusCode.NotFound)
                     return new SearchResult<TModel>() { Results = new List<TModel>() };
 
                 throw;
             }
-            
+
         }
 
         public override async Task<TModel> FindOne(Expression<Func<TModel, bool>> predicate, string partitionKey = null, bool singleResult = false)
@@ -428,6 +447,11 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 MaxItemCount = 2,
                 PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
             };
+
+            if (!string.IsNullOrEmpty(partitionKey))
+                queryOptions.PartitionKey = new PartitionKey(partitionKey);
+            else
+                Log.LogWarning($"Enabling Cross-Partition Query in repo {this.GetType().Name}");
 
             if (!singleResult)
             {
@@ -450,6 +474,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                         {
                             indexMetrics = res.IndexMetrics;
                         }
+
+                        Log.LogDebug($"CosmosDb FindOne query. RU cost:{res.RequestCharge}");
 
                         items.AddRange(res);
                     }
@@ -516,7 +542,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             var builder = new PartitionKeyBuilder();
             var props = model.GetType().GetProperties();
 
-            
+
             var keyProperty = props.FirstOrDefault(f => f.Name == PartitionKey);
             if (keyProperty == null)
             {
@@ -524,7 +550,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
             var value = keyProperty.GetValue(model) as string;
             builder.Add(value);
-            
+
 
             return builder.Build();
         }
@@ -549,9 +575,9 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             string collectionName = null,
             string databaseName = null,
             string partitionKey = null) : base(client, log, config, collectionName, databaseName, partitionKey)
-            {
-                var defaultInstance = Activator.CreateInstance<TModel>();
-                _defaultPartitionKey = defaultInstance.PartitionKey;
-            }
+        {
+            var defaultInstance = Activator.CreateInstance<TModel>();
+            _defaultPartitionKey = defaultInstance.PartitionKey;
+        }
     }
 }
