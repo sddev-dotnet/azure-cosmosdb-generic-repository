@@ -53,6 +53,8 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
         /// <returns></returns>
         Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false);
 
+        Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null);
+
         /// <summary>
         /// Insert or Update an object in the repository
         /// </summary>

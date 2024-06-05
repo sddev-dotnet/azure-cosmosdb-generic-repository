@@ -1,28 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-	  <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <PackageId>SDDev.Net.GenericRepository</PackageId>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/sddev-dotnet/azure-cosmosdb-generic-repository</RepositoryUrl>
+  </PropertyGroup>
+
   <ItemGroup>
-	<PackageReference Include="AutoMapper" Version="12.0.1" />
-	<PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
-	<PackageReference Include="Azure.Search.Documents" Version="11.5.1" />
-	<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
+    <PackageReference Include="AutoMapper" Version="12.0.1" />
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    <PackageReference Include="Azure.Search.Documents" Version="11.5.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
     <PackageReference Include="LINQKit.Core" Version="1.2.4" />
-	<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.35.2" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.35.2" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="Microsoft.Extensions.Azure" Version="1.6.3" />
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="7.0.0" />
-	<PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
-	<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
-	<PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
-	<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="7.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="7.0.0" />
-    <!--<PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="5.3.3" />-->
-	  <PackageReference Include="System.Linq" Version="4.3.0" />
+    <PackageReference Include="System.Linq" Version="4.3.0" />
     <PackageReference Include="System.Linq.Dynamic.Core" Version="1.3.10" />
   </ItemGroup>
 
