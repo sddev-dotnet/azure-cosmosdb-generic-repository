@@ -477,7 +477,7 @@ namespace SDDev.Net.GenericRepository.Tests
 
         [TestMethod]
         [TestCategory("INTEGRATION")]
-        public async Task WhenQueryCountingWithExpression_ThenCountIsReturned_Test()
+        public async Task WhenQueryCountWithExpression_ThenCountIsReturned_Test()
         {
             // Arrange
             var logger = _factory.CreateLogger<GenericRepository<TestObject>>();
