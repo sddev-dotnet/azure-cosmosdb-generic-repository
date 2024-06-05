@@ -513,7 +513,7 @@ namespace SDDev.Net.GenericRepository.Tests
         {
 
             var logger = _factory.CreateLogger<GenericRepository<AnotherTestObject>>();
-            var repo = new GenericRepository<AnotherTestObject>(_client, logger, _cosmos, "Testing");
+            var repo = new GenericRepository<AnotherTestObject>(_client, logger, _cosmos);
 
             var item = new AnotherTestObject()
             {
