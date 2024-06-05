@@ -1,0 +1,44 @@
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+name: Build and Publish NuGet Packages
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v2
+        with:
+          dotnet-version: "7.x"
+
+      - name: Determine changes in Contracts
+        id: changes-contracts
+        run: |
+          if git diff --name-only HEAD HEAD~1 | grep -q '^SDDev.Net.GenericRepository.Contracts/'; then echo "changed_contracts=true" >> $GITHUB_ENV; else echo "changed_contracts=false" >> $GITHUB_ENV; fi
+        shell: bash
+
+      - name: Determine changes in Repositories
+        id: changes-repositories
+        run: |
+          if git diff --name-only HEAD HEAD~1 | grep -q '^SDDev.Net.GenericRepository/'; then echo "changed_repositories=true" >> $GITHUB_ENV; else echo "changed_repositories=false" >> $GITHUB_ENV; fi
+        shell: bash
+
+      - name: Build and Publish Contracts
+        if: env.changed_contracts == 'true'
+        run: |
+          dotnet build SDDev.Net.GenericRepository.Contracts/SDDev.Net.GenericRepository.Contracts.csproj
+          dotnet pack SDDev.Net.GenericRepository.Contracts/SDDev.Net.GenericRepository.Contracts.csproj -o ./SDDev.Net.GenericRepository.Contracts/output
+          dotnet nuget push ./SDDev.Net.GenericRepository.Contracts/output/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+
+      - name: Build and Publish Repositories
+        if: env.changed_repositories == 'true'
+        run: |
+          dotnet build SDDev.Net.GenericRepository/SDDev.Net.GenericRepository.csproj
+          dotnet pack SDDev.Net.GenericRepository/SDDev.Net.GenericRepository.csproj -o ./SDDev.Net.GenericRepository/output
+          dotnet nuget push ./SDDev.Net.GenericRepository/output/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
