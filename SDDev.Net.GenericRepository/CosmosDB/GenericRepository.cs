@@ -115,7 +115,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             if (Configuration.PopulateIndexMetrics)
             {
-                Log.LogWarning("Index Metrics {metrics}", res.IndexMetrics);
+                Log.LogWarning("Index Metrics\n{metrics}", res.IndexMetrics);
             }
 
             if (res.RequestCharge < 100)
@@ -235,6 +235,26 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             response.ContinuationToken = !string.IsNullOrEmpty(res.ContinuationToken) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(res.ContinuationToken)) : "";
 
             return response;
+        }
+
+        public async Task<int> Count(Expression<Func<TModel, bool>> predicate, string partitionKey = null)
+        {
+            var queryOptions = new QueryRequestOptions();
+
+            if (!string.IsNullOrEmpty(partitionKey))
+                queryOptions.PartitionKey = new PartitionKey(partitionKey);
+            else
+                Log.LogWarning($"Enabling Cross-Partition Query in repo {this.GetType().Name}");
+
+            var query = Client
+                .GetItemLinqQueryable<TModel>(requestOptions: queryOptions)
+                .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
+                .Where(predicate)
+                .Select(x => x.Id);
+
+            var count = await query.CountAsync();
+
+            return count;
         }
 
         /// <summary>
