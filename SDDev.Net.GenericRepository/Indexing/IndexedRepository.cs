@@ -478,5 +478,9 @@ namespace SDDev.Net.GenericRepository.Indexing
             return indexModel;
         }
 
+        public Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null)
+        {
+            return _repository.Count(predicate, partitionKey);
+        }
     }
 }

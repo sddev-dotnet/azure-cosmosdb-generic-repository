@@ -237,7 +237,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             return response;
         }
 
-        public async Task<int> Count(Expression<Func<TModel, bool>> predicate, string partitionKey = null)
+        public async override Task<int> Count(Expression<Func<TModel, bool>> predicate, string partitionKey = null)
         {
             var queryOptions = new QueryRequestOptions();
 

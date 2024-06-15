@@ -165,9 +165,9 @@ namespace SDDev.Net.GenericRepository.Caching
             return Retrieve<dynamic>(key);
         }
 
-
-       
-
-        
+        public Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null)
+        {
+            return _repo.Count(predicate, partitionKey);
+        }
     }
 }

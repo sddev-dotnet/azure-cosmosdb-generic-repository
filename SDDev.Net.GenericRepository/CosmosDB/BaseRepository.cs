@@ -141,5 +141,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <returns></returns>
         public abstract Task Delete(Guid id, string partitionKey, bool force = false);
         public abstract Task Delete(T model, bool force = false);
+
+        public abstract Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null);
+        
     }
 }
