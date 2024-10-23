@@ -322,11 +322,6 @@ namespace SDDev.Net.GenericRepository.Indexing
                 // map to index and  upload to Azure Search
                 var batch = IndexDocumentsBatch.Create(actions.ToArray());
 
-                foreach (var action in actions)
-                {
-                    batch.Actions.Add(action);
-                }
-
                 try
                 {
                     var result = await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);

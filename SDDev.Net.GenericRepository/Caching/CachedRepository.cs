@@ -27,8 +27,8 @@ namespace SDDev.Net.GenericRepository.Caching
             IRepository<T> repository,
             IDistributedCache cache,
             int cacheSeconds = 60,
-            bool refreshCache = true
-            )
+            bool refreshCache = false
+            ) 
         {
             _cache = cache;
             this.cacheSeconds = cacheSeconds;
