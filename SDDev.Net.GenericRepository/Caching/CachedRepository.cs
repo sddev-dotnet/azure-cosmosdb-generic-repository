@@ -21,6 +21,11 @@ namespace SDDev.Net.GenericRepository.Caching
         private IRepository<T> _repo;
         private IDistributedCache _cache;
 
+        private JsonSerializerSettings _serializerSettings = new JsonSerializerSettings()
+        {
+            TypeNameHandling = TypeNameHandling.All
+        };
+
         public CachedRepository(
             ILogger<BaseRepository<T>> log,
             IOptions<CosmosDbConfiguration> config,
@@ -62,7 +67,7 @@ namespace SDDev.Net.GenericRepository.Caching
             var item = await _cache.GetStringAsync(id.ToString());
             if (item != null)
             {
-                var entity = JsonConvert.DeserializeObject<T>(item);
+                var entity = JsonConvert.DeserializeObject<T>(item, _serializerSettings);
                 return entity;
             }
 
@@ -71,7 +76,7 @@ namespace SDDev.Net.GenericRepository.Caching
             if (result != null)
             {
                 var options = GetCacheEntryOptions();
-                await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result)), options);
+                await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
             }
 
             return result;
@@ -95,7 +100,7 @@ namespace SDDev.Net.GenericRepository.Caching
         public async Task<Guid> Update(T model)
         {
             var options = GetCacheEntryOptions();
-            await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model), options);
+            await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
 
             return await _repo.Update(model);
         }
@@ -103,7 +108,7 @@ namespace SDDev.Net.GenericRepository.Caching
         public async Task<Guid> Upsert(T model)
         {
             var options = GetCacheEntryOptions();
-            await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model), options);
+            await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
             return await _repo.Upsert(model);
         }
 
@@ -116,7 +121,7 @@ namespace SDDev.Net.GenericRepository.Caching
             if (result != null)
             {
                 var options = GetCacheEntryOptions();
-                await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result)), options);
+                await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
             }
 
 
@@ -132,7 +137,7 @@ namespace SDDev.Net.GenericRepository.Caching
         {
             return _cache.SetAsync(
                 key,
-                Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entity)),
+                Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entity, _serializerSettings)),
                 GetCacheEntryOptions()
             );
         }
@@ -142,7 +147,7 @@ namespace SDDev.Net.GenericRepository.Caching
             var item = await _cache.GetStringAsync(id);
             if (item != null)
             {
-                Model entity = JsonConvert.DeserializeObject<Model>(item);
+                Model entity = JsonConvert.DeserializeObject<Model>(item, _serializerSettings);
                 return entity;
             }
 
