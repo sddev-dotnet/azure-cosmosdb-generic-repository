@@ -410,6 +410,13 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
+        public override async Task Patch(Guid id, string partitionKey, IReadOnlyList<PatchOperation> patches)
+        {
+            var response = await Client.PatchItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey), patches);
+            
+            Log.LogDebug($"CosmosDB patch RU cost: {response.RequestCharge}");
+        }
+
         public override async Task<ISearchResult<TModel>> GetAll(Expression<Func<TModel, bool>> predicate, ISearchModel model)
         {
             var results = new List<TModel>();
