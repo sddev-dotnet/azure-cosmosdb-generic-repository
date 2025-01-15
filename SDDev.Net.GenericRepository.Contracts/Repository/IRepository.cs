@@ -1,6 +1,8 @@
 ﻿using SDDev.Net.GenericRepository.Contracts.BaseEntity;
+using SDDev.Net.GenericRepository.Contracts.Repository.Patch;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using System;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 
@@ -52,6 +54,7 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
         /// <param name="singleResult">Whether to enforce that only a single result be found or now</param>
         /// <returns></returns>
         Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false);
+        IQueryable<T> Query(ISearchModel searchModel = null);
 
         Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null);
 
@@ -65,6 +68,7 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
         Task<Guid> Create(T model);
 
         Task<Guid> Update(T model);
+        Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection);
 
         /// <summary>
         /// Remove the object from the repository

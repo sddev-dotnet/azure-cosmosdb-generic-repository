@@ -37,5 +37,8 @@
         /// Determines whether is or not an active record
         /// </summary>
         public bool? Active { get; set; }
+
+        /// <inheritdoc/>
+        public bool? IncludeTotalResults { get; set; }
     }
 }
