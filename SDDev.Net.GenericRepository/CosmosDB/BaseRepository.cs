@@ -124,7 +124,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         public abstract Task<Guid> Create(T model);
 
         public abstract Task<Guid> Update(T model);
-        public abstract Task Patch(Guid id, string partitionKey, IReadOnlyList<PatchOperation> patches);
         public abstract Task<ISearchResult<T>> GetAll(Expression<Func<T, bool>> predicate, ISearchModel model);
         public abstract Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false);
 
