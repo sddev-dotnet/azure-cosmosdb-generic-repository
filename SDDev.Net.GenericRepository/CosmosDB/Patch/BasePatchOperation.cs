@@ -8,6 +8,7 @@ public abstract class BasePatchOperation<TOperation> : IPatchOperation
     {
         Path = path;
         Value = value;
+        Type = type;
     }
 
     public string Path { get; }

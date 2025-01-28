@@ -333,7 +333,7 @@ namespace SDDev.Net.GenericRepository.Tests
                 // Act
                 await _sut.Patch(id, test.PartitionKey, patchOperationCollection);
 
-                await Task.Delay(500); // It seems the Patch operation does not have immediate consistency with the following query.
+                await Task.Delay(2_000); // It seems the Patch operation does not have immediate consistency with the following query, possible false negative.
 
                 // Assert
                 var result = await _sut.Search(new SearchRequest()
