@@ -8,7 +8,6 @@ using SDDev.Net.GenericRepository.CosmosDB;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using Newtonsoft.Json;
@@ -20,11 +19,10 @@ using Microsoft.Extensions.Azure;
 using Azure;
 using SDDev.Net.GenericRepository.Contracts.Repository;
 using SDDev.Net.GenericRepository.Contracts.Indexing;
-using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.Indexing;
 using FluentAssertions;
-using System.Runtime.InteropServices;
 using System.Diagnostics;
+using SDDev.Net.GenericRepository.CosmosDB.Patch.AzureSearch;
 
 namespace SDDev.Net.GenericRepository.Tests
 {
@@ -107,7 +105,7 @@ namespace SDDev.Net.GenericRepository.Tests
                 var logger = x.GetService<ILogger<GenericRepository<BaseTestObject>>>();
                 var options = x.GetService<IOptions<CosmosDbConfiguration>>();
 
-                return new GenericRepository<BaseTestObject>(client, logger, options, "Testing", "comply");
+                return new GenericRepository<BaseTestObject>(client, logger, options, "Testing", "ExampleDB");
             });
             _services.AddScoped<IIndexedRepository<BaseTestObject, BaseTestIndexModel>, IndexedRepository<BaseTestObject, BaseTestIndexModel>>();
         }
@@ -122,7 +120,7 @@ namespace SDDev.Net.GenericRepository.Tests
             {
                 CreateOrUpdateIndex = true,
                 IndexName = "test",
-                RemoveOnLogicalDelete = false
+                RemoveOnLogicalDelete = false,
             });
 
             _sut.AfterMappingAsync += async (BaseTestIndexModel, BaseTestObject) =>
@@ -307,6 +305,53 @@ namespace SDDev.Net.GenericRepository.Tests
 
             // Assert
 
+        }
+
+        [TestMethod]
+        [TestCategory("INTEGRATION")]
+        public async Task WhenPatchingAnItem_ThenPropertiesArePatched()
+        {
+            // Arrange
+            var test = new BaseTestObject()
+            {
+                Id = Guid.NewGuid(),
+                Name = "Patch Test",
+            };
+
+            var id = await _sut.Create(test);
+
+            try
+            {
+                await _sut.UpdateIndex(test);
+
+                var patchOperationCollection = new AzureSearchPatchOperationCollection<BaseTestObject>();
+
+                var newName = Guid.NewGuid().ToString();
+
+                patchOperationCollection.Set(x => x.Name, newName);
+
+                // Act
+                await _sut.Patch(id, test.PartitionKey, patchOperationCollection);
+
+                await Task.Delay(500); // It seems the Patch operation does not have immediate consistency with the following query.
+
+                // Assert
+                var result = await _sut.Search(new SearchRequest()
+                {
+                    Options = new Azure.Search.Documents.SearchOptions()
+                    {
+                        Filter = $"Name eq '{newName}'",
+                    },
+                    SearchText = "",
+                });
+
+                result.Results.Count().Should().Be(1);
+                result.Results.First().Document.Name.Should().Be(newName);
+            }
+            finally
+            {
+                await _sut.Delete(id, test.PartitionKey, force: true);
+            }
         }
     }
 }

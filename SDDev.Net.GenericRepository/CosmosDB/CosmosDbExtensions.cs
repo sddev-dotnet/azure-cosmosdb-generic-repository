@@ -2,6 +2,7 @@
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -24,7 +25,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         }
 
         /// <summary>
-        /// Add our Implementation of CosmosDB to the startup of an ASP.NET app.  
+        /// Add our Implementation of CosmosDB to the startup of an ASP.NET app.
+        /// This method is intended to be used BEFORE the App is built, and before the Host is Run.
         /// </summary>
         /// <remarks>
         /// Requires a config value for DocumentDBUrl and DocumentDBKey
@@ -63,6 +65,17 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             });
 
 
+        }
+
+        /// <summary>
+        /// This method is intended to be used AFTER the App is built, and before the Host is Run.
+        /// </summary>
+        /// <param name="host"></param>
+        public static void AddCosmosDb(this IHost host)
+        {
+            var logger = host.Services.GetRequiredService<ILogger>();
+            var config = host.Services.GetRequiredService<IOptions<CosmosDbConfiguration>>();
+            CosmosQueryExtensions.InitializeDependenices(logger, config);
         }
 
         private static void RegisterServices(IServiceCollection services, IConfiguration configuration)

@@ -4,19 +4,19 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.Models;
-using Microsoft.Azure.Cosmos.Serialization.HybridRow;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Logging;
 using SDDev.Net.GenericRepository.Contracts.BaseEntity;
 using SDDev.Net.GenericRepository.Contracts.Indexing;
 using SDDev.Net.GenericRepository.Contracts.Repository;
+using SDDev.Net.GenericRepository.Contracts.Repository.Patch;
 using SDDev.Net.GenericRepository.Contracts.Search;
+using SDDev.Net.GenericRepository.CosmosDB.Patch.AzureSearch;
 using SDDev.Net.GenericRepository.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.Indexing
@@ -44,8 +44,8 @@ namespace SDDev.Net.GenericRepository.Indexing
         public event Func<Y, T, Task> AfterMappingAsync;
 
         public IndexedRepository(
-            IAzureClientFactory<SearchClient> searchFactory, 
-            IAzureClientFactory<SearchIndexClient> adminFactory,  
+            IAzureClientFactory<SearchClient> searchFactory,
+            IAzureClientFactory<SearchIndexClient> adminFactory,
             IMapper mapper,
             ILogger<IndexedRepository<T, Y>> logger)
         {
@@ -53,7 +53,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             _logger = logger;
             _clientFactory = searchFactory;
             _adminFactory = adminFactory;
-            
+
         }
 
         public void SetRepository(IRepository<T> repository)
@@ -73,7 +73,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             _options.AdminClientName = _options.AdminClientName ?? _options.IndexName; // backwards compatibility we separated the two properties so we can reuse clients better
             _adminClient = _adminFactory.CreateClient(_options.AdminClientName);
-            
+
         }
 
         public void Initialize(string indexClientName, IRepository<T> repository, IndexRepositoryOptions options = null)
@@ -118,7 +118,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             // map to index model
             var indexModel = await PerformMap(model).ConfigureAwait(false);
-           
+
             // upload to Azure Search
             var batch = IndexDocumentsBatch.Create(
                 IndexDocumentsAction.MergeOrUpload(indexModel)
@@ -127,7 +127,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             return result;
         }
-        
+
         /// <summary>
         /// This is used if you want to perform your own mapping logic outside the 
         /// indexed repository. The ID from the created entity will be set on the model for you
@@ -162,11 +162,10 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             await _repository.Delete(entity, force).ConfigureAwait(false);
 
-            
+
             var indexModel = _mapper.Map<Y>(entity);
             var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
             await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
-            
         }
 
         public virtual async Task Delete(T model, bool force = false)
@@ -208,6 +207,19 @@ namespace SDDev.Net.GenericRepository.Indexing
         {
             Validate();
             return _repository.GetAll(predicate, model);
+        }
+
+        public Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null)
+        {
+            Validate();
+            return _repository.Count(predicate, partitionKey);
+        }
+
+        public IQueryable<T> Query(ISearchModel searchModel)
+        {
+            Validate();
+            // We could potentially implement Microsoft.OData.Client to have IQueryable syntax with our IndexedRepository.
+            return _repository.Query(searchModel);
         }
 
         public virtual async Task<Guid> Update(T model)
@@ -295,7 +307,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
                 var tasks = new List<Task<Y>>();
                 var actions = new List<IndexDocumentsAction<Y>>();
-                foreach(var item in group)
+                foreach (var item in group)
                 {
 
                     if (item.IsActive == false)
@@ -305,7 +317,7 @@ namespace SDDev.Net.GenericRepository.Indexing
                             var deleteModel = _mapper.Map<Y>(item);
                             // Create a batch to delete the document from Azure Search
                             actions.Add(IndexDocumentsAction.Delete(deleteModel));
-                            continue;       
+                            continue;
                         }
                     }
 
@@ -313,7 +325,7 @@ namespace SDDev.Net.GenericRepository.Indexing
                 }
 
                 await Task.WhenAll(tasks).ConfigureAwait(false);
-                foreach(var task in tasks)
+                foreach (var task in tasks)
                 {
                     var item = await task;
                     actions.Add(IndexDocumentsAction.MergeOrUpload(item));
@@ -325,10 +337,10 @@ namespace SDDev.Net.GenericRepository.Indexing
                 try
                 {
                     var result = await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
-                    foreach(var resultItem in result.Value.Results)
+                    foreach (var resultItem in result.Value.Results)
                     {
                         // logs each 
-                        if(!resultItem.Succeeded)
+                        if (!resultItem.Succeeded)
                         {
                             _logger.LogError("Failed to update index for item {0}. Status: {1}| Message: {2}", resultItem.Key, resultItem.Status, resultItem.ErrorMessage);
                         }
@@ -336,8 +348,8 @@ namespace SDDev.Net.GenericRepository.Indexing
                 }
                 catch (RequestFailedException ex)
                 {
-                   // this is a failure of the whole batch, log and rethrow
-                   _logger.LogError(ex, "Failed to update index for batch");
+                    // this is a failure of the whole batch, log and rethrow
+                    _logger.LogError(ex, "Failed to update index for batch");
                     throw;
                 }
             });
@@ -376,6 +388,23 @@ namespace SDDev.Net.GenericRepository.Indexing
             return result;
         }
 
+        public async Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection)
+        {
+            Validate();
+            var azureOperations = operationCollection
+                .Where(x => x is AzureSearchPatchOperation)
+                .ToDictionary(x => x.Path, x => x.Value);
+
+            if (!azureOperations.Keys.Contains("Id"))
+            {
+                azureOperations.Add("Id", id.ToString());
+            }
+
+            await Task.WhenAll(
+                _repository.Patch(id, partitionKey, operationCollection),
+                _searchClient.MergeDocumentsAsync([azureOperations]));
+        }
+
         public virtual async Task<Guid> Upsert(T model)
         {
             Validate();
@@ -403,7 +432,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             return result;
         }
-        
+
         /// <summary>
         /// Performs a search against the index and returns the full Azure response
         /// </summary>
@@ -413,14 +442,14 @@ namespace SDDev.Net.GenericRepository.Indexing
         {
             Validate();
             var response = new IndexSearchResult<Y>();
-            var results =  await _searchClient.SearchAsync<Y>(request.SearchText, request.Options);
+            var results = await _searchClient.SearchAsync<Y>(request.SearchText, request.Options);
 
             var metadata = new IndexSearchMetadata();
             var facetOutput = metadata.Facets;
             metadata.TotalResults = results.Value?.TotalCount ?? 0;
-            if(results?.Value?.Facets?.Count > 0)
+            if (results?.Value?.Facets?.Count > 0)
             {
-                foreach(var facetResult in results?.Value?.Facets)
+                foreach (var facetResult in results?.Value?.Facets)
                 {
                     facetOutput[facetResult.Key] = facetResult.Value
                            .Select(x => new FacetValue { Value = x.Value.ToString(), Count = x.Count })
@@ -430,7 +459,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             response.Metadata = metadata;
             // get all of the results and load them into the response
-            await foreach(var result in results.Value.GetResultsAsync())
+            await foreach (var result in results.Value.GetResultsAsync())
             {
                 response.Results.Add(result);
             }
@@ -440,12 +469,12 @@ namespace SDDev.Net.GenericRepository.Indexing
 
         protected void Validate()
         {
-            if(this._repository == null)
+            if (this._repository == null)
             {
                 throw new ApplicationException("Failed to set repository instance prior to calling. Ensure you call SetRepository before attempting to call any methods.");
             }
 
-            if(this._searchClient == null)
+            if (this._searchClient == null)
             {
                 throw new ApplicationException("The Search Client is not initialized. Ensure that you have registered the SearchClient and provided the search client name.");
             }
@@ -471,11 +500,6 @@ namespace SDDev.Net.GenericRepository.Indexing
             }
 
             return indexModel;
-        }
-
-        public Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null)
-        {
-            return _repository.Count(predicate, partitionKey);
         }
     }
 }
