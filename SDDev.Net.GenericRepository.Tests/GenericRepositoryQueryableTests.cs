@@ -63,6 +63,7 @@ public class GenericRepositoryQueryableTests
 
         _factory = new LoggerFactory();
         _testLogger = _factory.CreateLogger<GenericRepository<TestObject>>();
+        CosmosQueryExtensions.InitializeDependenices(_testLogger, _cosmos);
     }
 
     [TestInitialize]
@@ -92,6 +93,8 @@ public class GenericRepositoryQueryableTests
                         Prop1 = prop1,
                     }));
             }
+
+            await Task.WhenAll(createTasks);
 
             // Act
             var count = (int)await _testRepo
