@@ -707,28 +707,36 @@ namespace SDDev.Net.GenericRepository.Tests
                 ChildObject = new TestObject
                 {
                     Number = 8,
-                }
+                },
+                Key = Guid.NewGuid().ToString(),
             };
 
             var id = await _testRepo.Create(item);
 
-            var original = await _testRepo.Get(id, item.PartitionKey);
+            try
+            {
+                var original = await _testRepo.Get(id, item.PartitionKey);
 
-            original.Number.Should().Be(5);
-            original.ChildObject.Number.Should().Be(8);
+                original.Number.Should().Be(5);
+                original.ChildObject.Number.Should().Be(8);
 
-            var operations = new CosmosPatchOperationCollection<TestObject>();
-            operations.Replace(x => x.Number, 7);
-            operations.Replace(x => x.ChildObject.Number, 12);
+                var operations = new CosmosPatchOperationCollection<TestObject>();
+                operations.Replace(x => x.Number, 7);
+                operations.Replace(x => x.ChildObject.Number, 12);
 
-            // Act
-            await _testRepo.Patch(id, item.PartitionKey, operations);
+                // Act
+                await _testRepo.Patch(id, item.PartitionKey, operations);
 
-            // Assert
-            var updated = await _testRepo.Get(id, item.PartitionKey);
+                // Assert
+                var updated = await _testRepo.Get(id, item.PartitionKey);
 
-            updated.Number.Should().Be(7);
-            updated.ChildObject.Number.Should().Be(12);
+                updated.Number.Should().Be(7);
+                updated.ChildObject.Number.Should().Be(12);
+            }
+            finally
+            {
+                await _testRepo.Delete(id, item.Key, force: true);
+            }
         }
 
         [TestMethod]
@@ -744,34 +752,42 @@ namespace SDDev.Net.GenericRepository.Tests
                     Prop1 = "w00t",
                 },
                 Collection = new List<string> { "Test1", "Test2" },
+                Key = Guid.NewGuid().ToString(),
             };
 
             var id = await _auditableRepo.Create(item);
 
-            var original = await _auditableRepo.Get(id, item.PartitionKey);
+            try
+            {
+                var original = await _auditableRepo.Get(id, item.PartitionKey);
 
-            original.ExampleProperty.Should().Be("Test");
-            original.ChildObject.Prop1.Should().Be("w00t");
-            original.Collection[0].Should().Be("Test1");
-            original.Collection[1].Should().Be("Test2");
+                original.ExampleProperty.Should().Be("Test");
+                original.ChildObject.Prop1.Should().Be("w00t");
+                original.Collection[0].Should().Be("Test1");
+                original.Collection[1].Should().Be("Test2");
 
-            var operations = new CosmosPatchOperationCollection<TestAuditableObject>();
-            operations.Replace(x => x.ExampleProperty, "Hmmm");
-            operations.Replace(x => x.ChildObject.Prop1, "Yaaas");
-            operations.Remove(x => x.Collection[0]);
-            operations.Add(x => x.Collection, "Test3");
+                var operations = new CosmosPatchOperationCollection<TestAuditableObject>();
+                operations.Replace(x => x.ExampleProperty, "Hmmm");
+                operations.Replace(x => x.ChildObject.Prop1, "Yaaas");
+                operations.Remove(x => x.Collection[0]);
+                operations.Add(x => x.Collection, "Test3");
 
-            // Act
-            await _auditableRepo.Patch(id, item.PartitionKey, operations);
+                // Act
+                await _auditableRepo.Patch(id, item.PartitionKey, operations);
 
-            // Assert
-            var updated = await _auditableRepo.Get(id, item.PartitionKey);
+                // Assert
+                var updated = await _auditableRepo.Get(id, item.PartitionKey);
 
-            updated.ExampleProperty.Should().Be("Hmmm");
-            updated.ChildObject.Prop1.Should().Be("Yaaas");
-            updated.Collection.Should().BeEquivalentTo(["Test2", "Test3"]);
+                updated.ExampleProperty.Should().Be("Hmmm");
+                updated.ChildObject.Prop1.Should().Be("Yaaas");
+                updated.Collection.Should().BeEquivalentTo(["Test2", "Test3"]);
 
-            updated.AuditMetadata.ModifiedDateTime.Should().BeWithin(TimeSpan.FromSeconds(1)).Before(DateTime.UtcNow);
+                updated.AuditMetadata.ModifiedDateTime.Should().BeWithin(TimeSpan.FromSeconds(1)).Before(DateTime.UtcNow);
+            }
+            finally
+            {
+                await _testRepo.Delete(id, item.Key, force: true);
+            }
         }
 
         [TestMethod]
@@ -786,11 +802,13 @@ namespace SDDev.Net.GenericRepository.Tests
             var commonProperty = Guid.NewGuid().ToString();
             var item1 = new TestObject()
             {
+                Id = Guid.NewGuid(),
                 ExampleProperty = commonProperty,
                 Key = partitionKey,
             };
             var item2 = new TestObject()
             {
+                Id = Guid.NewGuid(),
                 ExampleProperty = commonProperty,
                 Key = partitionKey,
             };
@@ -806,11 +824,20 @@ namespace SDDev.Net.GenericRepository.Tests
                 PartitionKey = partitionKey,
             };
 
-            // ACT
-            var results = await _testRepo.Get(x => x.ExampleProperty == commonProperty, searchModel);
+            try
+            {
+                // ACT
+                var results = await _testRepo.Get(x => x.ExampleProperty == commonProperty, searchModel);
 
-            // ASSERT
-            results.TotalResults.Should().Be(expectedTotalCount);
+                // ASSERT
+                results.TotalResults.Should().Be(expectedTotalCount);
+            }
+            finally
+            {
+                await Task.WhenAll(
+                    _testRepo.Delete(item1, force: true),
+                    _testRepo.Delete(item2, force: true));
+            }
         }
     }
 }

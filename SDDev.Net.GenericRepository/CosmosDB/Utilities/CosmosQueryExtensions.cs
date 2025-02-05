@@ -108,7 +108,7 @@ public static class CosmosQueryExtensions
 
     private static void LogRequestCharge(double charge, string query)
     {
-        if (_logger == null) return;
+        if (_logger is null) return;
 
         if (charge < 100)
             _logger.LogInformation($"Request used {charge} RUs.| Query: {query}");

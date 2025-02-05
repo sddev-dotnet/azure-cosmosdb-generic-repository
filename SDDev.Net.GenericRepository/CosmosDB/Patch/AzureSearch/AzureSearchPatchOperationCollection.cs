@@ -10,6 +10,7 @@ using System.Linq.Expressions;
 namespace SDDev.Net.GenericRepository.CosmosDB.Patch.AzureSearch;
 public class AzureSearchPatchOperationCollection<TEntity> : BasePatchOperationCollection<TEntity, IPatchOperation> where TEntity : class, IStorableEntity
 {
+
     public override void Set<TProperty>(Expression<Func<TEntity, TProperty>> expression, TProperty value)
     {
         ThrowIfArrayAccess(expression);

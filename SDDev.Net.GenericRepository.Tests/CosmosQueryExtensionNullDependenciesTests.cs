@@ -86,59 +86,89 @@ public class CosmosQueryExtensionNullDependenciesTests
     [TestCategory("INTEGRATION")]
     public async Task WhenCallingToListAsyncWithNoDependencies_ThenExtensionsDontFail()
     {
+        try
+        {
+            // ACT
+            var toListResult = await _queryable.ToListAsync();
 
-        // ACT
-        var toListResult = await _queryable.ToListAsync();
-
-        // ASSERT
-        AssertConfigurationAndLoggerAreNull();
-        toListResult.Select(x => x.Id).Should().BeEquivalentTo(_ids);
+            // ASSERT
+            AssertConfigurationAndLoggerAreNull();
+            toListResult.Select(x => x.Id).Should().BeEquivalentTo(_ids);
+        }
+        finally
+        {
+            await Cleanup();
+        }
     }
 
     [TestMethod]
     [TestCategory("INTEGRATION")]
     public async Task WhenCallingFirstOrDefaultAsyncWithNoDependencies_ThenExtensionsDontFail()
     {
+        try
+        {
+            // ACT
+            var firstOrDefaultResult = await _queryable
+                .Where(x => _ids.Contains(x.Id.Value))
+                .FirstOrDefaultAsync();
 
-        // ACT
-        var firstOrDefaultResult = await _queryable
-            .Where(x => _ids.Contains(x.Id.Value))
-            .FirstOrDefaultAsync();
-
-        // ASSERT
-        AssertConfigurationAndLoggerAreNull();
-        _ids.Should().Contain(firstOrDefaultResult.Id.Value);
+            // ASSERT
+            AssertConfigurationAndLoggerAreNull();
+            _ids.Should().Contain(firstOrDefaultResult.Id.Value);
+        }
+        finally
+        {
+            await Cleanup();
+        }
     }
 
     [TestMethod]
     [TestCategory("INTEGRATION")]
     public async Task WhenCallingSingleOrDefaultAsyncWithNoDependencies_ThenExtensionsDontFail()
     {
+        try
+        {
+            // ACT
+            var singleOrDefaultResult = await _queryable
+                .Where(x => x.Id == _ids[1])
+                .SingleOrDefaultAsync();
 
-        // ACT
-        var singleOrDefaultResult = await _queryable
-            .Where(x => x.Id == _ids[1])
-            .SingleOrDefaultAsync();
-
-        // ASSERT
-        AssertConfigurationAndLoggerAreNull();
-        singleOrDefaultResult.Id.Should().Be(_ids[1]);
+            // ASSERT
+            AssertConfigurationAndLoggerAreNull();
+            singleOrDefaultResult.Id.Should().Be(_ids[1]);
+        }
+        finally
+        {
+            await Cleanup();
+        }
     }
 
     [TestMethod]
     [TestCategory("INTEGRATION")]
     public async Task WhenCallingToAsyncEnumerableWithNoDependencies_ThenExtensionsDontFail()
     {
-
-        // ACT
-        var asyncEnumerableResult = new List<TestObject>();
-        await foreach (var result in _queryable.ToAsyncEnumerable())
+        try
         {
-            asyncEnumerableResult.Add(result);
-            // ASSERT
-            _ids.Should().Contain(result.Id.Value);
+            // ACT
+            var asyncEnumerableResult = new List<TestObject>();
+            await foreach (var result in _queryable.ToAsyncEnumerable())
+            {
+                asyncEnumerableResult.Add(result);
+                // ASSERT
+                _ids.Should().Contain(result.Id.Value);
+            }
+            AssertConfigurationAndLoggerAreNull();
         }
-        AssertConfigurationAndLoggerAreNull();
+        finally
+        {
+            await Cleanup();
+        }
+    }
+
+    private async Task Cleanup()
+    {
+        await Task.WhenAll(
+            _ids.Select(x => _testRepo.Delete(x, _partitionKey, force: true)));
     }
 
     private void AssertConfigurationAndLoggerAreNull()

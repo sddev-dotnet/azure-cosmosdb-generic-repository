@@ -53,7 +53,6 @@ namespace SDDev.Net.GenericRepository.Indexing
             _logger = logger;
             _clientFactory = searchFactory;
             _adminFactory = adminFactory;
-
         }
 
         public void SetRepository(IRepository<T> repository)
@@ -61,7 +60,6 @@ namespace SDDev.Net.GenericRepository.Indexing
             _logger.LogDebug($"Setting repository instance to {repository.GetType().Name}");
             _repository = repository;
         }
-
 
         /// <summary>
         /// This is the name of the index client that has been registered in your 

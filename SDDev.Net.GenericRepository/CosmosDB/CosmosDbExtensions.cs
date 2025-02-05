@@ -26,7 +26,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
         /// <summary>
         /// Add our Implementation of CosmosDB to the startup of an ASP.NET app.
-        /// This method is intended to be used BEFORE the App is built, and before the Host is Run.
+        /// This method is intended to be used BEFORE the App is built, and before the Host is Run. (eg. builder.Services.UseCosmosDb)
         /// </summary>
         /// <remarks>
         /// Requires a config value for DocumentDBUrl and DocumentDBKey
@@ -68,7 +68,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         }
 
         /// <summary>
-        /// This method is intended to be used AFTER the App is built, and before the Host is Run.
+        /// This method is intended to be used AFTER the App is built, and before the Host is Run. (eg. app.AddCosmosDb)
         /// </summary>
         /// <param name="host"></param>
         public static void AddCosmosDb(this IHost host)
