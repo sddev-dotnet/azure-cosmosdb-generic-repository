@@ -18,55 +18,9 @@ public static class CosmosQueryExtensions
         _configuration = configuration;
     }
 
-    public static async Task<List<TEntity>> ToListAsync<TEntity>(this IQueryable<TEntity> queryable)
-    {
-        var results = new List<TEntity>();
-
-        LogQuery(queryable);
-
-        var iterator = queryable.ToFeedIterator();
-
-        while (iterator.HasMoreResults)
-        {
-            var response = await iterator.ReadNextAsync();
-
-            LogResponseDetails(response, iterator);
-
-            results.AddRange(response);
-        }
-
-        return results;
-    }
-
-    public static async Task<TEntity> FirstOrDefaultAsync<TEntity>(this IQueryable<TEntity> queryable)
-    {
-        LogQuery(queryable);
-
-        var iterator = queryable.ToFeedIterator();
-
-        var response = await iterator.ReadNextAsync();
-
-        LogResponseDetails(response, iterator);
-
-        return response.FirstOrDefault();
-    }
-
-    public static async Task<TEntity> SingleOrDefaultAsync<TEntity>(this IQueryable<TEntity> queryable)
-    {
-        LogQuery(queryable);
-
-        var iterator = queryable.ToFeedIterator();
-
-        var response = await iterator.ReadNextAsync();
-
-        LogResponseDetails(response, iterator);
-
-        return response.SingleOrDefault();
-    }
-
     public static async IAsyncEnumerable<TEntity> ToAsyncEnumerable<TEntity>(this IQueryable<TEntity> queryable)
     {
-        LogQuery(queryable);
+        var query = LogQuery(queryable);
 
         var iterator = queryable.ToFeedIterator();
 
@@ -75,6 +29,9 @@ public static class CosmosQueryExtensions
             var response = await iterator.ReadNextAsync();
 
             LogResponseDetails(response, iterator);
+
+            // Preferable to log inside the loop here, since we're not loading everything into memory it would help to see the request charge over time.
+            LogRequestCharge(response.RequestCharge, query);
 
             foreach (var item in response)
             {
@@ -83,25 +40,88 @@ public static class CosmosQueryExtensions
         }
     }
 
+    public static async Task<List<TEntity>> ToListAsync<TEntity>(this IQueryable<TEntity> queryable)
+    {
+        var results = new List<TEntity>();
+
+        var queryText = LogQuery(queryable);
+
+        var iterator = queryable.ToFeedIterator();
+
+        var charge = 0D;
+        while (iterator.HasMoreResults)
+        {
+            var response = await iterator.ReadNextAsync();
+
+            charge += response.RequestCharge;
+
+            LogResponseDetails(response, iterator);
+
+            results.AddRange(response);
+        }
+
+        // Preferable to log outside the loop since everything's being loaded into memory immediately.
+        LogRequestCharge(charge, queryText);
+
+        return results;
+    }
+
+    public static async Task<TEntity> FirstOrDefaultAsync<TEntity>(this IQueryable<TEntity> queryable)
+    {
+        var queryText = LogQuery(queryable);
+
+        var iterator = queryable.ToFeedIterator();
+
+        var response = await iterator.ReadNextAsync();
+
+        LogResponseDetails(response, iterator);
+
+        LogRequestCharge(response.RequestCharge, queryText);
+
+        return response.FirstOrDefault();
+    }
+
+    public static async Task<TEntity> SingleOrDefaultAsync<TEntity>(this IQueryable<TEntity> queryable)
+    {
+        var queryText = LogQuery(queryable);
+
+        var iterator = queryable.ToFeedIterator();
+
+        var response = await iterator.ReadNextAsync();
+
+        LogResponseDetails(response, iterator);
+
+        LogRequestCharge(response.RequestCharge, queryText);
+
+        return response.SingleOrDefault();
+    }
+
     private static void LogResponseDetails<TEntity>(FeedResponse<TEntity> response, FeedIterator<TEntity> result)
     {
-        if (_logger == null) return;
+        if (_logger is null || _configuration is null) return;
 
-        if (_configuration != null && _configuration.Value.PopulateIndexMetrics)
+        if (_configuration.Value.PopulateIndexMetrics)
         {
             _logger.LogWarning("Index Metrics\n{metrics}", response.IndexMetrics);
         }
-
-        if (response.RequestCharge < 100)
-            _logger.LogInformation($"Request used {response.RequestCharge} RUs.| Query: {result}");
-        else if (response.RequestCharge < 200)
-            _logger.LogInformation($"Moderate request to CosmosDb used {response.RequestCharge} RUs");
-        else
-            _logger.LogWarning($"Expensive request to CosmosDb. RUs: {response.RequestCharge} | Query: {result}");
     }
 
-    private static void LogQuery<TEntity>(IQueryable<TEntity> queryable)
+    private static void LogRequestCharge(double charge, string query)
     {
-        _logger?.LogDebug("Executing query: {query}", queryable.ToQueryDefinition());
+        if (_logger == null) return;
+
+        if (charge < 100)
+            _logger.LogInformation($"Request used {charge} RUs.| Query: {query}");
+        else if (charge < 200)
+            _logger.LogInformation($"Moderate request to CosmosDb used {charge} RUs");
+        else
+            _logger.LogWarning($"Expensive request to CosmosDb. RUs: {charge} | Query: {query}");
+    }
+
+    private static string LogQuery<TEntity>(IQueryable<TEntity> queryable)
+    {
+        var query = queryable.ToQueryDefinition();
+        _logger?.LogDebug("Executing query: {query}", query);
+        return query.QueryText;
     }
 }

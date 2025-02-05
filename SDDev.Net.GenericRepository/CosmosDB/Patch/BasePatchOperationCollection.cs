@@ -24,6 +24,11 @@ public abstract class BasePatchOperationCollection<TEntity, TOperation> : IPatch
     /// <inheritdoc/>
     public abstract void Set<TProperty>(Expression<Func<TEntity, TProperty>> expression, TProperty value);
 
+    public void AppendOperation(TOperation operation)
+    {
+        _operations.Add(operation);
+    }
+
     public IEnumerator<IPatchOperation> GetEnumerator() => _operations.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
