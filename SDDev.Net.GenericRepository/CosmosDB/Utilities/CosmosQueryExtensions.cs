@@ -1,7 +1,7 @@
 ﻿using Microsoft.Azure.Cosmos;
-using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SDDev.Net.GenericRepository.CosmosDB.Utilities.FeedIterator;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,17 +18,19 @@ public static class CosmosQueryExtensions
         _configuration = configuration;
     }
 
+    internal static IFeedIteratorProvider FeedIteratorProvider { get; set; } = new CosmosFeedIteratorProvider();
+
     public static async IAsyncEnumerable<TEntity> ToAsyncEnumerable<TEntity>(this IQueryable<TEntity> queryable)
     {
         var query = LogQuery(queryable);
 
-        var iterator = queryable.ToFeedIterator();
+        var iterator = FeedIteratorProvider.CreateIterator(queryable);
 
         while (iterator.HasMoreResults)
         {
             var response = await iterator.ReadNextAsync();
 
-            LogResponseDetails(response, iterator);
+            LogResponseDetails(response);
 
             // Preferable to log inside the loop here, since we're not loading everything into memory it would help to see the request charge over time.
             LogRequestCharge(response.RequestCharge, query);
@@ -46,7 +48,7 @@ public static class CosmosQueryExtensions
 
         var queryText = LogQuery(queryable);
 
-        var iterator = queryable.ToFeedIterator();
+        var iterator = FeedIteratorProvider.CreateIterator(queryable);
 
         var charge = 0D;
         while (iterator.HasMoreResults)
@@ -55,7 +57,7 @@ public static class CosmosQueryExtensions
 
             charge += response.RequestCharge;
 
-            LogResponseDetails(response, iterator);
+            LogResponseDetails(response);
 
             results.AddRange(response);
         }
@@ -70,11 +72,11 @@ public static class CosmosQueryExtensions
     {
         var queryText = LogQuery(queryable);
 
-        var iterator = queryable.ToFeedIterator();
+        var iterator = FeedIteratorProvider.CreateIterator(queryable);
 
         var response = await iterator.ReadNextAsync();
 
-        LogResponseDetails(response, iterator);
+        LogResponseDetails(response);
 
         LogRequestCharge(response.RequestCharge, queryText);
 
@@ -85,18 +87,18 @@ public static class CosmosQueryExtensions
     {
         var queryText = LogQuery(queryable);
 
-        var iterator = queryable.ToFeedIterator();
+        var iterator = FeedIteratorProvider.CreateIterator(queryable);
 
         var response = await iterator.ReadNextAsync();
 
-        LogResponseDetails(response, iterator);
+        LogResponseDetails(response);
 
         LogRequestCharge(response.RequestCharge, queryText);
 
         return response.SingleOrDefault();
     }
 
-    private static void LogResponseDetails<TEntity>(FeedResponse<TEntity> response, FeedIterator<TEntity> result)
+    private static void LogResponseDetails<TEntity>(FeedResponse<TEntity> response)
     {
         if (_logger is null || _configuration is null) return;
 
@@ -120,8 +122,8 @@ public static class CosmosQueryExtensions
 
     private static string LogQuery<TEntity>(IQueryable<TEntity> queryable)
     {
-        var query = queryable.ToQueryDefinition();
+        var query = queryable.ToString();
         _logger?.LogDebug("Executing query: {query}", query);
-        return query.QueryText;
+        return query;
     }
 }
