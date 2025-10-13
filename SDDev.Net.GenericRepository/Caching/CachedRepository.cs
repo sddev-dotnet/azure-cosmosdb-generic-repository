@@ -4,10 +4,12 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using SDDev.Net.GenericRepository.Contracts.BaseEntity;
 using SDDev.Net.GenericRepository.Contracts.Repository;
+using SDDev.Net.GenericRepository.Contracts.Repository.Patch;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.CosmosDB;
 using SDDev.Net.GenericRepository.CosmosDB.Utilities;
 using System;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
@@ -33,7 +35,7 @@ namespace SDDev.Net.GenericRepository.Caching
             IDistributedCache cache,
             int cacheSeconds = 60,
             bool refreshCache = false
-            ) 
+            )
         {
             _cache = cache;
             this.cacheSeconds = cacheSeconds;
@@ -82,6 +84,11 @@ namespace SDDev.Net.GenericRepository.Caching
             return result;
         }
 
+        public IQueryable<T> Query(ISearchModel searchModel)
+        {
+            return _repo.Query(searchModel);
+        }
+
         public Task<ISearchResult<T>> Get(Expression<Func<T, bool>> predicate, ISearchModel model)
         {
             return _repo.Get(predicate, model);
@@ -103,6 +110,11 @@ namespace SDDev.Net.GenericRepository.Caching
             await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
 
             return await _repo.Update(model);
+        }
+
+        public Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection)
+        {
+            return _repo.Patch(id, partitionKey, operationCollection);
         }
 
         public async Task<Guid> Upsert(T model)

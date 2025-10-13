@@ -9,6 +9,7 @@ using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Serialization;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.CosmosDB;
+using SDDev.Net.GenericRepository.CosmosDB.Patch.Cosmos;
 using SDDev.Net.GenericRepository.CosmosDB.Utilities;
 using SDDev.Net.GenericRepository.Tests.TestModels;
 using System;
@@ -25,10 +26,12 @@ namespace SDDev.Net.GenericRepository.Tests
         private static IConfiguration _config;
         private static IOptions<CosmosDbConfiguration> _cosmos;
         private static CosmosClient _client;
-        private static ILogger<GenericRepository<TestObject>> _logger;
+        private static ILogger<GenericRepository<TestObject>> _testLogger;
+        private static ILogger<GenericRepository<TestAuditableObject>> _auditableLogger;
         private static ILoggerFactory _factory;
 
         private TestRepo _testRepo;
+        private GenericRepository<TestAuditableObject> _auditableRepo;
 
         [ClassInitialize]
         public static async Task ClassInitialize(TestContext context)
@@ -62,7 +65,8 @@ namespace SDDev.Net.GenericRepository.Tests
             });
 
             _factory = new LoggerFactory();
-            _logger = _factory.CreateLogger<GenericRepository<TestObject>>();
+            _testLogger = _factory.CreateLogger<GenericRepository<TestObject>>();
+            _auditableLogger = _factory.CreateLogger<GenericRepository<TestAuditableObject>>();
         }
 
         //[ClassCleanup]
@@ -77,7 +81,8 @@ namespace SDDev.Net.GenericRepository.Tests
         public async Task TestInit()
         {
 
-            _testRepo = new TestRepo(_client, _logger, _cosmos, "Testing");
+            _testRepo = new TestRepo(_client, _testLogger, _cosmos, "Testing");
+            _auditableRepo = new GenericRepository<TestAuditableObject>(_client, _auditableLogger, _cosmos, "Testing");
         }
 
         [TestMethod]
@@ -649,6 +654,9 @@ namespace SDDev.Net.GenericRepository.Tests
         {
             // Arrange
             var random = new Random();
+            var partitionKey1 = Guid.NewGuid().ToString();
+            var partitionKey2 = Guid.NewGuid().ToString();
+            var anchorKey = Guid.NewGuid().ToString();
             for (int i = 0; i < 100; i++)
             {
                 var item = new TestObject
@@ -659,27 +667,177 @@ namespace SDDev.Net.GenericRepository.Tests
                         "TestVal2"
                     },
                     Number = random.Next(0, 1000),
-                    Prop1 = $"TestingString-{i}",
                     ChildObject = new TestObject
                     {
                         Number = random.Next(),
                         Prop1 = "ChildTestObject"
                     },
-                    Key = i % 2 == 0 ? "Primary" : "Secondary"
+                    Prop1 = anchorKey,
+                    Key = i % 2 == 0 ? partitionKey1 : partitionKey2,
                 };
 
                 await _testRepo.Upsert(item);
             }
 
             // Act
-            var results = await _testRepo.Get(x => x.PartitionKey == "Primary", new SearchModel());
+            var results = await _testRepo.Get(x => x.Prop1 == anchorKey, new SearchModel()
+            {
+                PartitionKey = partitionKey1,
+            });
             results.TotalResults.Should().Be(50);
 
-            var secondary = await _testRepo.Get(x => x.PartitionKey == "Secondary", new SearchModel());
+            var secondary = await _testRepo.Get(x => x.Prop1 == anchorKey, new SearchModel()
+            {
+                PartitionKey = partitionKey2
+            });
             secondary.TotalResults.Should().Be(50);
 
-            var combined = await _testRepo.Get(x => true, new SearchModel());
+            var combined = await _testRepo.Get(x => x.Prop1 == anchorKey, new SearchModel());
             combined.TotalResults.Should().Be(100);
+        }
+
+        [TestMethod]
+        [TestCategory("INTEGRATION")]
+        public async Task WhenPatchingTestObject_ThenIndividualPropertiesAreUpdated()
+        {
+            // Arrange
+            var item = new TestObject
+            {
+                Number = 5,
+                ChildObject = new TestObject
+                {
+                    Number = 8,
+                },
+                Key = Guid.NewGuid().ToString(),
+            };
+
+            var id = await _testRepo.Create(item);
+
+            try
+            {
+                var original = await _testRepo.Get(id, item.PartitionKey);
+
+                original.Number.Should().Be(5);
+                original.ChildObject.Number.Should().Be(8);
+
+                var operations = new CosmosPatchOperationCollection<TestObject>();
+                operations.Replace(x => x.Number, 7);
+                operations.Replace(x => x.ChildObject.Number, 12);
+
+                // Act
+                await _testRepo.Patch(id, item.PartitionKey, operations);
+
+                // Assert
+                var updated = await _testRepo.Get(id, item.PartitionKey);
+
+                updated.Number.Should().Be(7);
+                updated.ChildObject.Number.Should().Be(12);
+            }
+            finally
+            {
+                await _testRepo.Delete(id, item.Key, force: true);
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("INTEGRATION")]
+        public async Task WhenPatchingAuditableObject_ThenModifiedDateTimeIsUpdated()
+        {
+            // Arrange
+            var item = new TestAuditableObject
+            {
+                ExampleProperty = "Test",
+                ChildObject = new TestObject
+                {
+                    Prop1 = "w00t",
+                },
+                Collection = new List<string> { "Test1", "Test2" },
+                Key = Guid.NewGuid().ToString(),
+            };
+
+            var id = await _auditableRepo.Create(item);
+
+            try
+            {
+                var original = await _auditableRepo.Get(id, item.PartitionKey);
+
+                original.ExampleProperty.Should().Be("Test");
+                original.ChildObject.Prop1.Should().Be("w00t");
+                original.Collection[0].Should().Be("Test1");
+                original.Collection[1].Should().Be("Test2");
+
+                var operations = new CosmosPatchOperationCollection<TestAuditableObject>();
+                operations.Replace(x => x.ExampleProperty, "Hmmm");
+                operations.Replace(x => x.ChildObject.Prop1, "Yaaas");
+                operations.Remove(x => x.Collection[0]);
+                operations.Add(x => x.Collection, "Test3");
+
+                // Act
+                await _auditableRepo.Patch(id, item.PartitionKey, operations);
+
+                // Assert
+                var updated = await _auditableRepo.Get(id, item.PartitionKey);
+
+                updated.ExampleProperty.Should().Be("Hmmm");
+                updated.ChildObject.Prop1.Should().Be("Yaaas");
+                updated.Collection.Should().BeEquivalentTo(["Test2", "Test3"]);
+
+                updated.AuditMetadata.ModifiedDateTime.Should().BeWithin(TimeSpan.FromSeconds(1)).Before(DateTime.UtcNow);
+            }
+            finally
+            {
+                await _testRepo.Delete(id, item.Key, force: true);
+            }
+        }
+
+        [TestMethod]
+        [DataRow(true, 2)]
+        [DataRow(false, 0)]
+        [DataRow(null, 2)]
+        [TestCategory("INTEGRATION")]
+        public async Task WhenSearchModelConfigurationIsProvided_ThenItOverridesConfigurationIncludeTotalResults(bool? includeTotalResults, int expectedTotalCount)
+        {
+            // ARRANGE
+            var partitionKey = Guid.NewGuid().ToString();
+            var commonProperty = Guid.NewGuid().ToString();
+            var item1 = new TestObject()
+            {
+                Id = Guid.NewGuid(),
+                ExampleProperty = commonProperty,
+                Key = partitionKey,
+            };
+            var item2 = new TestObject()
+            {
+                Id = Guid.NewGuid(),
+                ExampleProperty = commonProperty,
+                Key = partitionKey,
+            };
+
+            await Task.WhenAll(
+                _testRepo.Create(item1),
+                _testRepo.Create(item2));
+
+            var searchModel = new SearchModel()
+            {
+                IncludeTotalResults = includeTotalResults,
+                PageSize = 1, // Use this so that we force a paginated response
+                PartitionKey = partitionKey,
+            };
+
+            try
+            {
+                // ACT
+                var results = await _testRepo.Get(x => x.ExampleProperty == commonProperty, searchModel);
+
+                // ASSERT
+                results.TotalResults.Should().Be(expectedTotalCount);
+            }
+            finally
+            {
+                await Task.WhenAll(
+                    _testRepo.Delete(item1, force: true),
+                    _testRepo.Delete(item2, force: true));
+            }
         }
     }
 }
