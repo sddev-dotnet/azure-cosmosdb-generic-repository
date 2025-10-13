@@ -1,9 +1,4 @@
 ﻿using AutoMapper;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.Tests.TestModels
 {
@@ -11,7 +6,8 @@ namespace SDDev.Net.GenericRepository.Tests.TestModels
     {
         public MappingProfile()
         {
-            CreateMap<BaseTestObject, BaseTestIndexModel>();
+            CreateMap<BaseTestObject, BaseTestIndexModel>()
+                .ForMember(x => x.Id, x => x.MapFrom(y => y.Id.Value));
         }
     }
 }

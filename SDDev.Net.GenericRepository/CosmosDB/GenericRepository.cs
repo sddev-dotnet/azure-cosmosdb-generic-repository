@@ -4,7 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SDDev.Net.GenericRepository.Contracts.BaseEntity;
+using SDDev.Net.GenericRepository.Contracts.Repository.Patch;
 using SDDev.Net.GenericRepository.Contracts.Search;
+using SDDev.Net.GenericRepository.CosmosDB.Patch.Cosmos;
 using SDDev.Net.GenericRepository.CosmosDB.Utilities;
 using System;
 using System.Collections.Generic;
@@ -65,6 +67,9 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
             };
 
+            var includeTotalCount = model.IncludeTotalResults
+                ?? Configuration.IncludeTotalResultsByDefault;
+
             if (!string.IsNullOrEmpty(model.PartitionKey))
                 queryOptions.PartitionKey = new PartitionKey(model.PartitionKey);
             else
@@ -91,7 +96,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 query = query.OrderBy(order);
             }
 
-            if (string.IsNullOrEmpty(model.ContinuationToken))
+            if (includeTotalCount && string.IsNullOrEmpty(model.ContinuationToken))
             {
 
                 var totalResultsCount = await query.CountAsync().ConfigureAwait(false);
@@ -160,6 +165,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
             };
 
+            var includeTotalCount = model.IncludeTotalResults ?? Configuration.IncludeTotalResultsByDefault;
+
             if (!string.IsNullOrEmpty(model.PartitionKey))
                 queryOptions.PartitionKey = new PartitionKey(model.PartitionKey);
             else
@@ -186,7 +193,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 q.OrderBy(order);
             };
 
-            if (string.IsNullOrEmpty(model.ContinuationToken))
+            if (includeTotalCount && string.IsNullOrEmpty(model.ContinuationToken))
             {
                 var totalResultsCount = await q.CountAsync().ConfigureAwait(false);
 
@@ -255,6 +262,41 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             var count = await query.CountAsync();
 
             return count;
+        }
+
+        public override IQueryable<TModel> Query(ISearchModel searchModel = null)
+        {
+            searchModel ??= new SearchModel();
+
+            if (string.IsNullOrWhiteSpace(searchModel.PartitionKey))
+            {
+                Log.LogWarning("Enabling Cross-Partition Query for {entityName} repo", typeof(TModel).Name);
+            }
+
+            var options = new QueryRequestOptions()
+            {
+                MaxItemCount = searchModel.PageSize,
+                PartitionKey = !string.IsNullOrEmpty(searchModel.PartitionKey)
+                    ? new PartitionKey(searchModel.PartitionKey)
+                    : null,
+            };
+
+            var queryable = Client
+                .GetItemLinqQueryable<TModel>(requestOptions: options)
+                .Where(x => x.ItemType.Contains(typeof(TModel).Name));
+
+            if (!string.IsNullOrEmpty(searchModel.SortByField))
+            {
+                var order = $"{searchModel.SortByField} {(searchModel.SortAscending ? "" : "DESC")}".Trim();
+                queryable = queryable.OrderBy(order);
+            }
+
+            if (searchModel.Offset > 0)
+            {
+                queryable = queryable.Skip(searchModel.Offset).Take(searchModel.PageSize);
+            }
+
+            return queryable;
         }
 
         /// <summary>
@@ -408,6 +450,26 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 Log.LogError("Failed to update document", ex);
                 throw;
             }
+        }
+
+        public override async Task Patch(Guid id, string partitionKey, IPatchOperationCollection<TModel> operationCollection)
+        {
+            var isAuditableEntity = typeof(IAuditableEntity).IsAssignableFrom(typeof(TModel));
+            var modifiedDatePath = $"/{nameof(IAuditableEntity.AuditMetadata)}/{nameof(IAuditableEntity.AuditMetadata.ModifiedDateTime)}";
+
+            if (isAuditableEntity && !operationCollection.Any(x => x.Path == modifiedDatePath))
+            {
+                operationCollection.Set(x => ((IAuditableEntity)x).AuditMetadata.ModifiedDateTime, DateTime.UtcNow);
+            }
+
+            var cosmosOperations = operationCollection
+                .Where(x => x is CosmosPatchOperation)
+                .Select(x => x.ToOperation<PatchOperation>())
+                .ToList();
+
+            var response = await Client.PatchItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey), cosmosOperations);
+
+            Log.LogDebug($"CosmosDB patch RU cost: {response.RequestCharge}");
         }
 
         public override async Task<ISearchResult<TModel>> GetAll(Expression<Func<TModel, bool>> predicate, ISearchModel model)
