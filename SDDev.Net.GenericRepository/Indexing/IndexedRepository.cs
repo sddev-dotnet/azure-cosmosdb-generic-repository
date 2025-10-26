@@ -438,6 +438,11 @@ namespace SDDev.Net.GenericRepository.Indexing
         /// <returns></returns>
         public async Task<IndexSearchResult<Y>> Search(SearchRequest request)
         {
+            if(request.Options.Size == 0)
+            {
+                request.Options.Size = 100; // default to 100
+            }
+
             Validate();
             var response = new IndexSearchResult<Y>();
             var results = await _searchClient.SearchAsync<Y>(request.SearchText, request.Options);

@@ -7,11 +7,13 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Serialization;
+using SDDev.Net.GenericRepository.Contracts.Repository;
 using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.CosmosDB;
 using SDDev.Net.GenericRepository.CosmosDB.Patch.Cosmos;
 using SDDev.Net.GenericRepository.CosmosDB.Utilities;
 using SDDev.Net.GenericRepository.Tests.TestModels;
+using SDDev.Net.GenericRepository.Tests.TestModels.MikeSample;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -64,9 +66,13 @@ namespace SDDev.Net.GenericRepository.Tests
                 Serializer = new CosmosJsonDotNetSerializer(serializer)
             });
 
-            _factory = new LoggerFactory();
-            _testLogger = _factory.CreateLogger<GenericRepository<TestObject>>();
-            _auditableLogger = _factory.CreateLogger<GenericRepository<TestAuditableObject>>();
+            _factory = LoggerFactory.Create(builder =>
+            {
+                builder.AddConsole();
+                builder.SetMinimumLevel(LogLevel.Debug);
+            });
+
+            _logger = _factory.CreateLogger<GenericRepository<TestObject>>();
         }
 
         //[ClassCleanup]
@@ -83,6 +89,52 @@ namespace SDDev.Net.GenericRepository.Tests
 
             _testRepo = new TestRepo(_client, _testLogger, _cosmos, "Testing");
             _auditableRepo = new GenericRepository<TestAuditableObject>(_client, _auditableLogger, _cosmos, "Testing");
+        }
+
+        [TestMethod]
+        [TestCategory("SAMPLE")]
+        public async Task WhenCreatingMikeSamples_ThenSamplesAreCreated()
+        {
+            // Arrange
+            var repo = new GenericRepository<MikeSample>(_client, _factory.CreateLogger<GenericRepository<MikeSample>>(), _cosmos, "Testing");
+
+            // Act
+            var rand = new Random();
+            var tasks = new List<Task>();
+            Guid superSpecialGuid = Guid.NewGuid();
+            for (var i = 0; i < 100; i++)
+            {
+                
+                var sample = new MikeSample
+                {
+                    Name = $"Sample {i}",
+                    PhoneNumber = $"555-555-{i.ToString().PadLeft(4, '0')}",
+                    UniqueId = i == 0 ? superSpecialGuid :  Guid.NewGuid(),
+                    DateOfBirth = DateTime.Now.AddYears(rand.Next(1, 85)),
+                    Height = rand.NextDouble() * 100,
+                    Weight = (decimal)rand.NextDouble() * 100,
+                    IsAlive = rand.Next(0, 1) == 1,
+                    Age = rand.Next(1, 100),
+                    Nicknames = i % 5 == 0 ? new List<string> { "Mike", "Mickey", "Michael" } : new List<string>()
+                };
+
+                tasks.Add(repo.Create(sample));
+            }
+
+            await Task.WhenAll(tasks);
+
+            var results = await repo.FindOne(x => x.UniqueId == superSpecialGuid);
+
+            var searchResults = await repo.Get(x => x.DateOfBirth >= DateTime.Now.AddYears(-10), new SearchModel() {  PageSize = 50});
+
+            await repo.Delete(results.Id.Value, results.PartitionKey, true);
+
+            var nickNames = await repo.Get(x => x.Nicknames.Count > 0, new SearchModel());
+            var mickys = await repo.Get(x => x.Nicknames.Any(n => n == "Mickey"), new SearchModel());
+
+
+
+            // Assert
         }
 
         [TestMethod]
