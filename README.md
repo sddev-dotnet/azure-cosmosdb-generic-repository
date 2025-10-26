@@ -2,6 +2,8 @@
 
 The **SDDev.Net.GenericRepository** package implements the repository pattern on top of Azure Cosmos DB. It allows you to model your data as Plain Old C# Objects (POCOs) while the library handles container access, partition routing, query construction, and cross-cutting features such as caching, indexing, and patch updates. The goal is to make the common 90% of Cosmos DB development frictionless while still giving you escape hatches (for example, direct access to the `Container` client) for the remaining scenarios.
 
+> **Prerequisite:** The repository targets **.NET 9**. Install the [.NET 9 SDK](https://dotnet.microsoft.com/download) before building the solution or referencing the package.
+
 The repository project ships together with a contracts package that contains base entity abstractions and search helpers. This repository hosts both packages, a test suite, and an example application that demonstrate how to use the tooling end-to-end.
 
 ## Key capabilities
@@ -17,7 +19,7 @@ The repository project ships together with a contracts package that contains bas
 
 ## Packages
 
-Add the following packages to your application:
+Add the following packages to your application (both target .NET 9):
 
 ```bash
  dotnet add package SDDev.Net.GenericRepository
@@ -212,7 +214,29 @@ The repository handles translating the key list into a `PartitionKey` compatible
 
 ### Indexing integration
 
-The `IndexedRepository<T>` adds Azure Cognitive Search support on top of the base repository. When you decorate a repository with indexing, patch and CRUD operations synchronize content with your search index. Consult the indexing tests for practical examples.
+The `IndexedRepository<T, TIndex>` adds Azure Cognitive Search support on top of the base repository. When you decorate a repository with indexing, patch and CRUD operations synchronize content with your search index. Consult the indexing tests for practical examples and the following tips when wiring up the decorator:
+
+- **One-time setup** – call `Initialize(indexClientName, repository, options)` (or `SetRepository`/`SetIndexClientName`) after construction so the decorator knows which `IRepository<T>` instance and Azure client registrations to use.
+- **Customize mapping** – subscribe to the `AfterMapping` or `AfterMappingAsync` events to enrich the index model with data that is not stored in Cosmos DB.
+- **Manual index rebuilds** – use `CreateOrUpdateIndex()` to deploy your schema and `UpdateIndex(...)` overloads to repopulate the index. The overload that accepts an `id` now supports an optional `partitionKey` parameter; omit it when your entity uses the default key.
+- **Parallel refresh** – `UpdateIndex(IList<T> entities, int maxDegreeOfParallelism = 1)` lets you batch updates efficiently. Increase the degree of parallelism when reindexing larger datasets.
+- **Bring-your-own models** – call `Create(entity, indexModel)` or `Update(entity, indexModel)` if you want to control the mapping step entirely.
+
+```csharp
+var indexedRepository = serviceProvider.GetRequiredService<IIndexedRepository<MyEntity, MyEntityIndex>>();
+indexedRepository.Initialize("SearchClient", innerRepository, new IndexRepositoryOptions
+{
+    IndexName = "my-entities",
+    RemoveOnLogicalDelete = true
+});
+
+indexedRepository.AfterMapping += (indexModel, entity) =>
+{
+    indexModel.Region = ResolveRegion(entity.CustomerId);
+};
+
+await indexedRepository.UpdateIndex(id, partitionKey: null); // optional partition key parameter
+```
 
 ## Samples and reference material
 
