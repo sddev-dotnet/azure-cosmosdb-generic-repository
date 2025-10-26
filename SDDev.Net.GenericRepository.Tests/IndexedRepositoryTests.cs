@@ -87,7 +87,9 @@ namespace SDDev.Net.GenericRepository.Tests
                     new AzureKeyCredential(_config.GetValue<string>("Search:Key"))
                 ).WithName("testing");             
             });
-            _services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies().Where(x => x.FullName.StartsWith("SDDev.Net")));
+            _services.AddAutoMapper(cfg => { 
+                
+            }, AppDomain.CurrentDomain.GetAssemblies().Where(x => x.FullName.StartsWith("SDDev.Net")).ToArray());
 
             _client = new CosmosClient(cosmos.ConnectionString, new CosmosClientOptions()
             {
