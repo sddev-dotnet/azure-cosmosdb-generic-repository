@@ -27,17 +27,13 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.10" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.10" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="8.0.0" />
+    <PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="9.0.0" />
     <PackageReference Include="System.Linq" Version="4.3.0" />
     <PackageReference Include="System.Linq.Dynamic.Core" Version="1.6.9" />
   </ItemGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\SDDev.Net.GenericRepository.Contracts\SDDev.Net.GenericRepository.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
