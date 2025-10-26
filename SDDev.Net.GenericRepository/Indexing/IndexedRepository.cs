@@ -289,7 +289,7 @@ namespace SDDev.Net.GenericRepository.Indexing
         /// <param name="entities"></param>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
-        public async Task UpdateIndex(IList<T> entities, int maxDegreeOfParallelism = 1)
+        public async Task UpdateIndex(IList<T> entities, int maxDegreeOfParallelism = 1, int groupSize = 900)
         {
             Validate();
 
@@ -378,10 +378,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             }
 
             // upload to Azure Search
-            var batch = IndexDocumentsBatch.Create(
-                IndexDocumentsAction.MergeOrUpload(model)
-            );
-            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            await UpdateIndex(model);
 
             return result;
         }
@@ -503,6 +500,65 @@ namespace SDDev.Net.GenericRepository.Indexing
             }
 
             return indexModel;
+        }
+
+        public async Task UpdateIndex(IList<Y> models, int maxDegreeOfParallelism = 1, int groupSize = 900)
+        {
+            Validate();
+
+            if (maxDegreeOfParallelism <= 0)
+            {
+                throw new System.InvalidOperationException("maxDegreeOfParallelism must be a positive value.");
+            }
+
+            if (groupSize > 1000)
+            {
+                throw new ArgumentException("Group Size must be less than 1000 for Azure Search.");
+            }
+
+            var groups = models.Partition(groupSize);
+
+            Parallel.ForEach(groups, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async group =>
+            {
+
+                var tasks = new List<Task<Y>>();
+                var actions = new List<IndexDocumentsAction<Y>>();
+                foreach (var task in tasks)
+                {
+                    var item = await task;
+                    actions.Add(IndexDocumentsAction.MergeOrUpload(item));
+                }
+
+                // map to index and  upload to Azure Search
+                var batch = IndexDocumentsBatch.Create(actions.ToArray());
+
+                try
+                {
+                    var result = await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+                    foreach (var resultItem in result.Value.Results)
+                    {
+                        // logs each 
+                        if (!resultItem.Succeeded)
+                        {
+                            _logger.LogError("Failed to update index for item {0}. Status: {1}| Message: {2}", resultItem.Key, resultItem.Status, resultItem.ErrorMessage);
+                        }
+                    }
+                }
+                catch (RequestFailedException ex)
+                {
+                    // this is a failure of the whole batch, log and rethrow
+                    _logger.LogError(ex, "Failed to update index for batch");
+                    throw;
+                }
+            });
+        }
+
+        public async Task UpdateIndex(Y model)
+        {
+            var batch = IndexDocumentsBatch.Create(
+                IndexDocumentsAction.MergeOrUpload(model)
+            );
+            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
         }
     }
 }

@@ -58,7 +58,24 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
 
         Task UpdateIndex(Guid id, string partitionKey = null);
 
-        Task UpdateIndex(IList<T> entities, int maxDegreeOfParallelism = 1);
+        Task UpdateIndex(IList<T> entities, int maxDegreeOfParallelism = 1, int groupSize = 900);
+
+
+        /// <summary>
+        /// Perform mapping yourself and just provide the models to be indexed.
+        /// </summary>
+        /// <param name="models"></param>
+        /// <param name="maxDegreeOfParallelism"></param>
+        /// <param name="groupSize">The size batches to upload to Azure Search. Do not exceed 1000</param>
+        /// <returns></returns>
+        Task UpdateIndex(IList<Y> models, int maxDegreeOfParallelism = 1, int groupSize = 900);
+
+        /// <summary>
+        /// Update a single model in the index that you have already mapped
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        Task UpdateIndex(Y model);
 
         Task<IndexSearchResult<Y>> Search(SearchRequest request);
     }
