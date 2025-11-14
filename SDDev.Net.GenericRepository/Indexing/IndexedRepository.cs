@@ -523,14 +523,10 @@ namespace SDDev.Net.GenericRepository.Indexing
 
                 var tasks = new List<Task<Y>>();
                 var actions = new List<IndexDocumentsAction<Y>>();
-                foreach (var task in tasks)
-                {
-                    var item = await task;
-                    actions.Add(IndexDocumentsAction.MergeOrUpload(item));
-                }
+
 
                 // map to index and  upload to Azure Search
-                var batch = IndexDocumentsBatch.Create(actions.ToArray());
+                var batch = IndexDocumentsBatch.Create(group.Select(i => IndexDocumentsAction.MergeOrUpload(i)).ToArray());
 
                 try
                 {
