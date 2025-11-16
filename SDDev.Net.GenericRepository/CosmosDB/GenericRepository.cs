@@ -75,11 +75,16 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             else
                 Log.LogWarning($"Enabling Cross-Partition Query in repo {this.GetType().Name}");
 
-            if (!string.IsNullOrEmpty(model.ContinuationToken))
+            // FIX: Only decode and set continuation token if it's not null/empty/whitespace
+            if (!string.IsNullOrWhiteSpace(model.ContinuationToken))
             {
                 var decoded = Convert.FromBase64String(model.ContinuationToken);
                 var token = System.Text.Encoding.UTF8.GetString(decoded);
-                model.ContinuationToken = token;
+                model.ContinuationToken = string.IsNullOrWhiteSpace(token) ? null : token;
+            }
+            else
+            {
+                model.ContinuationToken = null;
             }
 
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
@@ -145,7 +150,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 }
             }
 
-            response.ContinuationToken = !string.IsNullOrEmpty(continuation) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(continuation)) : "";
+            // FIX: Only encode and return continuation token if it's not null/empty/whitespace
+            response.ContinuationToken = !string.IsNullOrWhiteSpace(continuation)
+                ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(continuation))
+                : null;
 
             return response;
 
@@ -172,11 +180,16 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             else
                 Log.LogWarning($"Enabling Cross-Partition Query in repo {this.GetType().Name}");
 
-            if (!string.IsNullOrEmpty(model.ContinuationToken))
+            // FIX: Only decode and set continuation token if it's not null/empty/whitespace
+            if (!string.IsNullOrWhiteSpace(model.ContinuationToken))
             {
                 var decoded = Convert.FromBase64String(model.ContinuationToken);
                 var token = System.Text.Encoding.UTF8.GetString(decoded);
-                model.ContinuationToken = token;
+                model.ContinuationToken = string.IsNullOrWhiteSpace(token) ? null : token;
+            }
+            else
+            {
+                model.ContinuationToken = null;
             }
 
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
@@ -239,7 +252,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 }
             }
 
-            response.ContinuationToken = !string.IsNullOrEmpty(res.ContinuationToken) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(res.ContinuationToken)) : "";
+            // FIX: Only encode and return continuation token if it's not null/empty/whitespace
+            response.ContinuationToken = !string.IsNullOrWhiteSpace(res.ContinuationToken)
+                ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(res.ContinuationToken))
+                : null;
 
             return response;
         }
