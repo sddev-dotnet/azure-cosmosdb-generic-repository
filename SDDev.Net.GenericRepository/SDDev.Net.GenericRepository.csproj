@@ -17,7 +17,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
     <PackageReference Include="LINQKit.Core" Version="1.2.8" />
     <PackageReference Include="Microsoft.AspNetCore.JsonPatch" Version="9.0.10" />
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.54.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.54.1" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="Microsoft.Extensions.Azure" Version="1.13.0" />
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.10" />
