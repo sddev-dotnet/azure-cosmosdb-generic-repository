@@ -15,21 +15,21 @@
     <PackageReference Include="AutoMapper" Version="15.1.0" />
     <PackageReference Include="Azure.Search.Documents" Version="11.7.0" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
-    <PackageReference Include="LINQKit.Core" Version="1.2.8" />
-    <PackageReference Include="Microsoft.AspNetCore.JsonPatch" Version="9.0.10" />
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.54.1" />
+    <PackageReference Include="LINQKit.Core" Version="1.2.9" />
+    <PackageReference Include="Microsoft.AspNetCore.JsonPatch" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.55.0" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="Microsoft.Extensions.Azure" Version="1.13.0" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.10" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.10" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.10" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.10" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.10" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Azure" Version="1.13.1" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="SDDev.Net.GenericRepository.Contracts" Version="9.0.0" />
     <PackageReference Include="System.Linq" Version="4.3.0" />
-    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.6.9" />
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.0" />
   </ItemGroup>
 
   <ItemGroup>

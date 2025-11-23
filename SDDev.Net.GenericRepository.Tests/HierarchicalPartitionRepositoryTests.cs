@@ -376,7 +376,7 @@ namespace SDDev.Net.GenericRepository.Tests
                 var searchResults = await _testRepo.Get(searchModel);
 
                 //Assert
-                searchResults.TotalResults.Should().BeGreaterOrEqualTo(1);
+                searchResults.TotalResults.Should().BeGreaterThanOrEqualTo(1);
             }
             catch (Exception e)
             {
@@ -436,7 +436,7 @@ namespace SDDev.Net.GenericRepository.Tests
 
             //Assert
 
-            results.TotalResults.Should().BeGreaterOrEqualTo(1);
+            results.TotalResults.Should().BeGreaterThanOrEqualTo(1);
         }
 
         [TestMethod]
@@ -519,7 +519,7 @@ namespace SDDev.Net.GenericRepository.Tests
 
 
             //Assert
-            results.TotalResults.Should().BeGreaterOrEqualTo(2);
+            results.TotalResults.Should().BeGreaterThanOrEqualTo(2);
         }
 
         [TestMethod]
