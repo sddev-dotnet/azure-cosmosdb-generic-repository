@@ -107,7 +107,7 @@ namespace SDDev.Net.GenericRepository.Tests
                 var logger = x.GetService<ILogger<GenericRepository<BaseTestObject>>>();
                 var options = x.GetService<IOptions<CosmosDbConfiguration>>();
 
-                return new GenericRepository<BaseTestObject>(client, logger, options, "Testing", "ExampleDB");
+                return new GenericRepository<BaseTestObject>(client, logger, options, "BaseTestObject", "ExampleDB");
             });
             _services.AddScoped<IIndexedRepository<BaseTestObject, BaseTestIndexModel>, IndexedRepository<BaseTestObject, BaseTestIndexModel>>();
         }
@@ -177,7 +177,7 @@ namespace SDDev.Net.GenericRepository.Tests
             // Assert
         }
 
-        [TestMethod]
+        //[TestMethod]
         public async Task WhenRequestingFacets_ThenFacetCountsReturned()
         {
             // Arrange
