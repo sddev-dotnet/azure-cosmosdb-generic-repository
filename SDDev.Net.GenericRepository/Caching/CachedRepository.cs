@@ -9,6 +9,7 @@ using SDDev.Net.GenericRepository.Contracts.Search;
 using SDDev.Net.GenericRepository.CosmosDB;
 using SDDev.Net.GenericRepository.CosmosDB.Utilities;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -22,6 +23,11 @@ namespace SDDev.Net.GenericRepository.Caching
         protected bool refreshCache = true;
         private IRepository<T> _repo;
         private IDistributedCache _cache;
+        private readonly ILogger<BaseRepository<T>> _logger;
+
+        // Static tracking to detect multiple cache instances (indicates transient/scoped registration)
+        private static readonly HashSet<object> _trackedCacheInstances = new HashSet<object>();
+        private static readonly object _trackingLock = new object();
 
         private JsonSerializerSettings _serializerSettings = new JsonSerializerSettings()
         {
@@ -37,7 +43,28 @@ namespace SDDev.Net.GenericRepository.Caching
             bool refreshCache = false
             )
         {
+            if (cache == null)
+                throw new ArgumentNullException(nameof(cache));
+
+            // Automatic runtime validation: detect if multiple cache instances are being used
+            // This indicates transient/scoped registration which causes connection pool exhaustion
+            lock (_trackingLock)
+            {
+                if (_trackedCacheInstances.Count > 0 && !_trackedCacheInstances.Contains(cache))
+                {
+                    throw new InvalidOperationException(
+                        "Multiple IDistributedCache instances detected. " +
+                        "This indicates IDistributedCache is registered as Transient or Scoped, which causes connection pool exhaustion. " +
+                        "IDistributedCache MUST be registered as Singleton to prevent Redis connection pool exhaustion in Kubernetes deployments. " +
+                        "Solution: Use AddStackExchangeRedisCache() which registers as Singleton by default, or ensure your cache registration uses AddSingleton<IDistributedCache>(). " +
+                        "For validation, call builder.Services.ValidateDistributedCacheRegistration() after registering your cache.");
+                }
+
+                _trackedCacheInstances.Add(cache);
+            }
+
             _cache = cache;
+            _logger = log;
             this.cacheSeconds = cacheSeconds;
             this.refreshCache = refreshCache;
             _repo = repository;
@@ -47,15 +74,30 @@ namespace SDDev.Net.GenericRepository.Caching
         {
             var item = await _repo.Create(model);
 
-            var options = GetCacheEntryOptions();
-            await _cache.SetAsync(model.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model)), options);
+            try
+            {
+                var options = GetCacheEntryOptions();
+                await _cache.SetAsync(model.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model, _serializerSettings)), options);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to cache entity {EntityId} of type {EntityType} after create operation. Repository operation succeeded.", model.Id, typeof(T).Name);
+            }
 
             return item;
         }
 
         public async Task Delete(Guid id, string partitionKey, bool force = false)
         {
-            await _cache.RemoveAsync(id.ToString());
+            try
+            {
+                await _cache.RemoveAsync(id.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to remove entity {EntityId} of type {EntityType} from cache. Repository operation will continue.", id, typeof(T).Name);
+            }
+
             await _repo.Delete(id, partitionKey, force);
         }
 
@@ -66,19 +108,33 @@ namespace SDDev.Net.GenericRepository.Caching
 
         public async Task<T> Get(Guid id, string partitionKey = null)
         {
-            var item = await _cache.GetStringAsync(id.ToString());
-            if (item != null)
+            try
             {
-                var entity = JsonConvert.DeserializeObject<T>(item, _serializerSettings);
-                return entity;
+                var item = await _cache.GetStringAsync(id.ToString());
+                if (item != null)
+                {
+                    var entity = JsonConvert.DeserializeObject<T>(item, _serializerSettings);
+                    return entity;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to retrieve entity {EntityId} of type {EntityType} from cache. Falling back to repository.", id, typeof(T).Name);
             }
 
             var result = await _repo.Get(id, partitionKey);
 
             if (result != null)
             {
-                var options = GetCacheEntryOptions();
-                await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
+                try
+                {
+                    var options = GetCacheEntryOptions();
+                    await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to cache entity {EntityId} of type {EntityType} after retrieval. Entity returned from repository.", result.Id, typeof(T).Name);
+                }
             }
 
             return result;
@@ -106,8 +162,15 @@ namespace SDDev.Net.GenericRepository.Caching
 
         public async Task<Guid> Update(T model)
         {
-            var options = GetCacheEntryOptions();
-            await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
+            try
+            {
+                var options = GetCacheEntryOptions();
+                await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to cache entity {EntityId} of type {EntityType} after update operation. Repository operation will continue.", model.Id, typeof(T).Name);
+            }
 
             return await _repo.Update(model);
         }
@@ -119,48 +182,81 @@ namespace SDDev.Net.GenericRepository.Caching
 
         public async Task<Guid> Upsert(T model)
         {
-            var options = GetCacheEntryOptions();
-            await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
+            try
+            {
+                var options = GetCacheEntryOptions();
+                await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to cache entity {EntityId} of type {EntityType} after upsert operation. Repository operation will continue.", model.Id, typeof(T).Name);
+            }
+
             return await _repo.Upsert(model);
         }
 
         public async Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false)
         {
-
             var result = await _repo.FindOne(predicate, partitionKey, singleResult).ConfigureAwait(false);
-
 
             if (result != null)
             {
-                var options = GetCacheEntryOptions();
-                await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
+                try
+                {
+                    var options = GetCacheEntryOptions();
+                    await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to cache entity {EntityId} of type {EntityType} after FindOne operation. Entity returned from repository.", result.Id, typeof(T).Name);
+                }
             }
-
 
             return result;
         }
 
         public async Task Evict(string key)
         {
-            await _cache.RemoveAsync(key);
+            try
+            {
+                await _cache.RemoveAsync(key);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to evict cache key {CacheKey}. Operation will continue.", key);
+            }
         }
 
-        public Task Cache<T1>(T1 entity, string key)
+        public async Task Cache<T1>(T1 entity, string key)
         {
-            return _cache.SetAsync(
-                key,
-                Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entity, _serializerSettings)),
-                GetCacheEntryOptions()
-            );
+            try
+            {
+                await _cache.SetAsync(
+                    key,
+                    Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entity, _serializerSettings)),
+                    GetCacheEntryOptions()
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to cache entity with key {CacheKey} of type {EntityType}. Operation will continue.", key, typeof(T1).Name);
+            }
         }
 
         public async Task<Model> Retrieve<Model>(string id)
         {
-            var item = await _cache.GetStringAsync(id);
-            if (item != null)
+            try
             {
-                Model entity = JsonConvert.DeserializeObject<Model>(item, _serializerSettings);
-                return entity;
+                var item = await _cache.GetStringAsync(id);
+                if (item != null)
+                {
+                    Model entity = JsonConvert.DeserializeObject<Model>(item, _serializerSettings);
+                    return entity;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to retrieve entity with key {CacheKey} of type {ModelType} from cache.", id, typeof(Model).Name);
             }
 
             return default;

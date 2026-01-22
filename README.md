@@ -179,20 +179,141 @@ await _repository.Patch(entityId, partitionKey: customerId, operations);
 
 ### Cached repositories
 
-Wrap repositories with `CachedRepository<T>` to store point reads in `IDistributedCache` implementations such as Redis:
+Wrap repositories with `CachedRepository<T>` to store point reads in `IDistributedCache` implementations such as Redis.
+
+#### Required Packages
+
+Before using cached repositories, install the required packages:
+
+```bash
+# Required for Redis caching support
+dotnet add package Microsoft.Extensions.Caching.StackExchangeRedis
+
+# Required for Decorate extension method
+dotnet add package Scrutor
+```
+
+#### Complete Setup Example
+
+Here's a complete example showing all required steps:
 
 ```csharp
+using Microsoft.Extensions.Caching.StackExchangeRedis;
+using SDDev.Net.GenericRepository.Caching;
+using Scrutor; // Required for Decorate extension method
+
+// 1. Register Redis cache (registers IDistributedCache as Singleton by default)
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("Redis");
 });
 
+// 2. Validate cache registration (optional but recommended - automatic validation also occurs at runtime)
+builder.Services.ValidateDistributedCacheRegistration();
+
+// 3. Register base repository
 builder.Services.AddScoped<IRepository<MyEntity>, GenericRepository<MyEntity>>();
+
+// 4. Decorate with caching (requires Scrutor package)
 builder.Services.Decorate<IRepository<MyEntity>, CachedRepository<MyEntity>>();
 ```
 
-- Cache entries default to a 60 second sliding window.
-- Call `ICachedRepository<T>.Evict` or `Delete` to remove cache entries explicitly when executing cross-entity operations.
+#### Automatic Validation and Enforcement
+
+**Automatic Runtime Validation**: `CachedRepository<T>` automatically validates that `IDistributedCache` is registered as Singleton when instantiated. If multiple cache instances are detected (indicating transient/scoped registration), an exception is thrown at startup, preventing connection pool exhaustion.
+
+**Registration-Time Validation**: You can also validate at registration time using `ValidateDistributedCacheRegistration()`. This provides early feedback, but automatic runtime validation ensures the issue is caught even if you forget to call it.
+
+#### Redis Connection Pool Management for Kubernetes
+
+**Critical for Horizontal Scaling**: `IDistributedCache` must be registered as a **Singleton** to prevent connection pool exhaustion. When deployed in Kubernetes with horizontal scaling, each pod creates its own connection pool. If `IDistributedCache` is registered as transient or scoped, each `CachedRepository<T>` instance within a pod may create its own Redis connection pool, leading to pool exhaustion.
+
+**Architecture**:
+- Each pod = 1 process = 1 connection pool (optimal)
+- Multiple pods = multiple connection pools (expected and correct)
+- Multiple connection pools per pod = connection exhaustion (problematic - **automatically prevented**)
+
+**⚠️ Do NOT register as Transient or Scoped**:
+
+```csharp
+// DON'T DO THIS - creates multiple connection pools per pod
+// This will be detected and throw an exception at startup
+builder.Services.AddTransient<IDistributedCache>(sp => 
+    new StackExchangeRedisCache(...));
+```
+
+#### Configuration Options
+
+You can configure cache expiration behavior when registering `CachedRepository<T>`. However, since `Decorate` doesn't support constructor parameters directly, you have two options:
+
+**Option 1: Use default configuration (60 seconds, no sliding expiration)**
+```csharp
+builder.Services.Decorate<IRepository<MyEntity>, CachedRepository<MyEntity>>();
+```
+
+**Option 2: Register with custom configuration using factory method**
+```csharp
+builder.Services.AddScoped<IRepository<MyEntity>>(sp =>
+{
+    var innerRepo = sp.GetRequiredService<IRepository<MyEntity>>();
+    var cache = sp.GetRequiredService<IDistributedCache>();
+    var logger = sp.GetRequiredService<ILogger<CachedRepository<MyEntity>>>();
+    var config = sp.GetRequiredService<IOptions<CosmosDbConfiguration>>();
+    
+    // Custom configuration: 120 seconds cache, with sliding expiration
+    return new CachedRepository<MyEntity>(logger, config, innerRepo, cache, cacheSeconds: 120, refreshCache: true);
+});
+```
+
+**Configuration Parameters**:
+- `cacheSeconds`: Cache expiration time in seconds (default: 60)
+- `refreshCache`: Whether to use sliding expiration - resets timer on each access (default: false)
+
+#### Multiple Entity Types
+
+When using multiple `CachedRepository<T>` instances for different entity types, they all share the same `IDistributedCache` singleton instance. This is the correct behavior and ensures:
+
+- **Single connection pool per pod**: All cached repositories share one Redis connection pool
+- **Efficient resource usage**: Optimal for Kubernetes horizontal scaling
+- **Automatic validation**: If any repository detects multiple cache instances, validation fails for all
+
+Example with multiple entity types:
+```csharp
+// All repositories share the same IDistributedCache singleton
+builder.Services.AddScoped<IRepository<Customer>, GenericRepository<Customer>>();
+builder.Services.Decorate<IRepository<Customer>, CachedRepository<Customer>>();
+
+builder.Services.AddScoped<IRepository<Order>, GenericRepository<Order>>();
+builder.Services.Decorate<IRepository<Order>, CachedRepository<Order>>();
+
+// Both CachedRepository<Customer> and CachedRepository<Order> use the same IDistributedCache instance
+// This ensures only one connection pool per pod
+```
+
+#### Error Handling
+
+`CachedRepository<T>` handles cache failures gracefully:
+- Cache read failures: Logs warning and falls back to repository (returns null if not found)
+- Cache write failures: Logs warning and continues with repository operation
+- Cache delete failures: Logs warning and continues with repository operation
+- Cache operations are best-effort: failures are logged but don't throw exceptions
+
+This ensures that Redis connection issues, pool exhaustion, or timeouts don't crash your application.
+
+#### Cache Key Strategy
+
+Cache keys are based on entity ID: `entity.Id.ToString()`. This means:
+- Each entity is cached by its unique ID
+- Different entity types with the same ID will have separate cache entries (they use different `CachedRepository<T>` instances)
+- Cache keys are simple and predictable
+
+#### Cache Operations
+
+- **Automatic caching**: `Get(id)` operations are automatically cached after first retrieval
+- **Automatic invalidation**: `Create`, `Update`, `Upsert`, and `Delete` operations automatically update/remove cache entries
+- **Manual eviction**: Use `ICachedRepository<T>.Evict(key)` to manually remove cache entries
+- **Custom caching**: Use `ICachedRepository<T>.Cache<TModel>(entity, key)` to cache arbitrary objects
+- **Custom retrieval**: Use `ICachedRepository<T>.Retrieve<Model>(key)` to retrieve cached objects
 
 ### Hierarchical partition keys
 
