@@ -276,6 +276,11 @@ namespace SDDev.Net.GenericRepository.Caching
         {
             var options = new DistributedCacheEntryOptions();
 
+            // Always set absolute expiration to prevent cache entries from never expiring
+            options.SetAbsoluteExpiration(TimeSpan.FromSeconds(cacheSeconds));
+
+            // Add sliding expiration only when refreshCache is true
+            // This extends expiration on each access, but absolute expiration ensures it still expires eventually
             if (refreshCache)
             {
                 options.SetSlidingExpiration(TimeSpan.FromSeconds(cacheSeconds));
