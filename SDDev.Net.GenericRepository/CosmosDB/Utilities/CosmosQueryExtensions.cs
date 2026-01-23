@@ -5,7 +5,7 @@ using SDDev.Net.GenericRepository.CosmosDB.Utilities.FeedIterator;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System; // needed for Exception
+using System;
 
 namespace SDDev.Net.GenericRepository.CosmosDB.Utilities;
 public static class CosmosQueryExtensions
