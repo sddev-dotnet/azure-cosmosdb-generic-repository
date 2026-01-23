@@ -267,7 +267,7 @@ namespace SDDev.Net.GenericRepository.Tests
             InvalidOperationException exception = null;
             try
             {
-                var cachedRepo2 = new CachedRepository<TestObject>(_logger, _cosmos, genericRepo2, cache2);
+                new CachedRepository<TestObject>(_logger, _cosmos, genericRepo2, cache2);
             }
             catch (InvalidOperationException ex)
             {
