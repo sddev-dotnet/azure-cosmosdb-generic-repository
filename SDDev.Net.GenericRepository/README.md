@@ -242,6 +242,46 @@ builder.Services.AddTransient<IDistributedCache>(sp =>
     new StackExchangeRedisCache(...));
 ```
 
+#### Azure Cache for Redis Connection Limits
+
+When using Azure Cache for Redis, connection limits vary by tier. Understanding these limits is crucial for horizontal scaling:
+
+**Connection Limits by Tier**:
+- **Basic**: 20 connections (not suitable for production with multiple services)
+- **Standard**: 1,000+ connections (suitable for most production scenarios)
+- **Premium**: 2,000+ connections (for high-scale scenarios)
+
+**How Connections Are Used**:
+- Each pod creates **one** `ConnectionMultiplexer` (via singleton `IDistributedCache`)
+- One `ConnectionMultiplexer` handles many concurrent operations efficiently through connection multiplexing
+- Physical connections are multiplexed over fewer actual TCP connections
+
+**Connection Calculation**:
+- **Total connections** = Number of pods across all services
+- Example: 30 services × 10 pods each = 300 connections (fits in Standard tier ✅)
+- Example: 30 services × 50 pods each = 1,500 connections (needs Premium tier ✅)
+
+**When You Might Hit Limits**:
+- Using Basic tier with multiple services/pods
+- Very high pod counts (100+ pods total)
+- Need to upgrade Azure Redis tier or consider shared connection service
+
+**Connection Multiplexing**:
+StackExchange.Redis uses connection multiplexing - a single `ConnectionMultiplexer` can handle thousands of concurrent operations efficiently. The current implementation (1 connection pool per pod) is optimal because:
+- Each `ConnectionMultiplexer` multiplexes operations over a small number of physical connections
+- Multiple logical operations share the same physical connections
+- Default settings are usually optimal for most scenarios
+
+**Tier Selection Guidance**:
+- **Basic (20 connections)**: Only for development/testing with single pod
+- **Standard (1,000+ connections)**: Suitable for most production scenarios with multiple services
+- **Premium (2,000+ connections)**: For high-scale deployments with many pods
+
+**If You're Hitting Connection Limits**:
+1. **Upgrade Azure Redis tier** (recommended for most cases)
+2. **Consider shared connection service** (if Basic tier is required for cost reasons)
+3. **Monitor connection usage** to understand actual requirements
+
 #### Configuration Options
 
 You can configure cache expiration behavior when registering `CachedRepository<T>`. However, since `Decorate` doesn't support constructor parameters directly, you have two options:

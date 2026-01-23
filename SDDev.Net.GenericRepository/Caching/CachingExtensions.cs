@@ -86,5 +86,72 @@ namespace SDDev.Net.GenericRepository.Caching
             // Validate cache registration before decoration
             return services.ValidateDistributedCacheRegistration();
         }
+
+        /// <summary>
+        /// Provides optimized configuration guidance for Azure Cache for Redis.
+        /// This method validates that IDistributedCache will be registered correctly and provides
+        /// guidance on optimal configuration for horizontal scaling scenarios.
+        /// </summary>
+        /// <param name="services">The service collection.</param>
+        /// <returns>The service collection for chaining.</returns>
+        /// <remarks>
+        /// <para>
+        /// <strong>Purpose:</strong> This helper validates your Redis cache configuration and provides
+        /// guidance for optimal Azure Cache for Redis setup in Kubernetes environments.
+        /// </para>
+        /// 
+        /// <para>
+        /// <strong>Recommended Configuration:</strong>
+        /// When using AddStackExchangeRedisCache(), the default configuration is usually optimal.
+        /// StackExchange.Redis uses connection multiplexing where a single ConnectionMultiplexer
+        /// handles many concurrent operations efficiently. Each pod creates one ConnectionMultiplexer
+        /// (via singleton IDistributedCache), which is optimal for horizontal scaling.
+        /// </para>
+        /// 
+        /// <para>
+        /// <strong>Example with optimized defaults:</strong>
+        /// <code>
+        /// // Standard registration (already optimized by default)
+        /// builder.Services.AddStackExchangeRedisCache(options =>
+        /// {
+        ///     options.Configuration = builder.Configuration.GetConnectionString("Redis");
+        ///     // ConnectionMultiplexer defaults are optimal for most scenarios
+        ///     // No additional configuration needed unless you have specific requirements
+        /// });
+        /// 
+        /// // Validate the registration
+        /// builder.Services.ValidateAzureRedisConfiguration();
+        /// </code>
+        /// </para>
+        /// 
+        /// <para>
+        /// <strong>Connection Multiplexing:</strong>
+        /// - One ConnectionMultiplexer per pod (via singleton IDistributedCache)
+        /// - Each ConnectionMultiplexer multiplexes operations over a small number of physical connections
+        /// - Default settings handle thousands of concurrent operations efficiently
+        /// </para>
+        /// 
+        /// <para>
+        /// <strong>Azure Redis Tier Selection:</strong>
+        /// - Basic (20 connections): Not suitable for production with multiple services
+        /// - Standard (1,000+ connections): Suitable for most production scenarios (30 services × 10 pods = 300 connections)
+        /// - Premium (2,000+ connections): For high-scale deployments (30 services × 50 pods = 1,500 connections)
+        /// </para>
+        /// 
+        /// <para>
+        /// <strong>Connection Calculation:</strong>
+        /// Total connections = Number of pods across all services.
+        /// Each pod = 1 ConnectionMultiplexer = efficient connection usage.
+        /// </para>
+        /// </remarks>
+        public static IServiceCollection ValidateAzureRedisConfiguration(this IServiceCollection services)
+        {
+            if (services == null)
+                throw new ArgumentNullException(nameof(services));
+
+            // Validate that IDistributedCache will be registered as Singleton
+            // This ensures optimal connection usage (1 pool per pod)
+            return services.ValidateDistributedCacheRegistration();
+        }
     }
 }
