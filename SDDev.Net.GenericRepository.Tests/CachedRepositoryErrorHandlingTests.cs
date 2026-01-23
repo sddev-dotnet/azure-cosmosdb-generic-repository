@@ -261,7 +261,7 @@ namespace SDDev.Net.GenericRepository.Tests
             var genericRepo2 = new GenericRepository<TestObject>(_client, _logger, _cosmos, "Testing");
 
             // Act - Create first repository with cache1
-            var cachedRepo1 = new CachedRepository<TestObject>(_logger, _cosmos, genericRepo1, cache1);
+            new CachedRepository<TestObject>(_logger, _cosmos, genericRepo1, cache1);
 
             // Assert - Creating second repository with different cache instance should throw
             InvalidOperationException exception = null;
