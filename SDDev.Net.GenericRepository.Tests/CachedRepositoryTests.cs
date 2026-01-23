@@ -31,6 +31,7 @@ namespace SDDev.Net.GenericRepository.Tests
         private static CosmosClient _client;
         private static ILogger<GenericRepository<TestObject>> _logger;
         private static ILoggerFactory _factory;
+        private static IDistributedCache _sharedCache;
         private CachedRepository<TestObject> _sut;
         private IDistributedCache _cache;
 
@@ -67,14 +68,18 @@ namespace SDDev.Net.GenericRepository.Tests
 
             _factory = new LoggerFactory();
             _logger = _factory.CreateLogger<GenericRepository<TestObject>>();
+
+            // Initialize a single shared cache instance (simulate Singleton registration)
+            var opts = new MemoryDistributedCacheOptions();
+            var options = new OptionsWrapper<MemoryDistributedCacheOptions>(opts);
+            _sharedCache = new MemoryDistributedCache(options);
         }
 
         [TestInitialize]
         public async Task TestInit()
         {
-            var opts = new MemoryDistributedCacheOptions();
-            var options = new OptionsWrapper<MemoryDistributedCacheOptions>(opts);
-            _cache = new MemoryDistributedCache(options);
+            // Reuse the shared cache instance across tests
+            _cache = _sharedCache;
             var genericRepo = new GenericRepository<TestObject>(_client, _logger, _cosmos, "Testing");
             _sut = new CachedRepository<TestObject>( _logger, _cosmos, genericRepo, _cache);
         }
@@ -207,9 +212,8 @@ namespace SDDev.Net.GenericRepository.Tests
             var anotherTestObject = new AnotherTestObject() { Name = "AnotherTestObjectValue", Prop1 = "AnotherProp1" };
             anotherTestObject.Id = sharedId;
 
-            var opts = new MemoryDistributedCacheOptions();
-            var options = new OptionsWrapper<MemoryDistributedCacheOptions>(opts);
-            var sharedCache = new MemoryDistributedCache(options);
+            // Use the same shared cache instance to satisfy singleton validation
+            var sharedCache = _sharedCache;
 
             var testObjectLogger = _factory.CreateLogger<GenericRepository<TestObject>>();
             var anotherTestObjectLogger = _factory.CreateLogger<GenericRepository<AnotherTestObject>>();
