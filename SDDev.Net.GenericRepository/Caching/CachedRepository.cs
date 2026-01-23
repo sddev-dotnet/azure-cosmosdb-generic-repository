@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -20,12 +20,21 @@ namespace SDDev.Net.GenericRepository.Caching
     public class CachedRepository<T> : ICachedRepository<T> where T : class, IStorableEntity
     {
         protected int cacheSeconds = 60;
-        protected bool refreshCache = true;
+        protected bool refreshCache = false;
         private IRepository<T> _repo;
         private IDistributedCache _cache;
         private readonly ILogger<BaseRepository<T>> _logger;
 
-        // Static tracking to detect multiple cache instances (indicates transient/scoped registration)
+        // Static tracking to detect multiple cache instances (indicates transient/scoped registration).
+        // NOTE:
+        //   These static members are intentionally shared across all CachedRepository<T> instances,
+        //   regardless of the generic type parameter T (e.g., Customer, Order, etc.).
+        //   This provides cross-entity-type validation that a single IDistributedCache instance
+        //   is used application-wide (i.e., IDistributedCache is registered as a singleton).
+        //   If different entity types are (incorrectly) configured with different cache instances,
+        //   only the first differing instance will be detected and will cause an exception to be thrown.
+        //   This is sufficient to signal a misconfiguration; subsequent mismatches will not be
+        //   individually reported but indicate the same underlying registration problem.
         private static readonly HashSet<object> _trackedCacheInstances = new HashSet<object>();
         private static readonly object _trackingLock = new object();
 
@@ -77,7 +86,7 @@ namespace SDDev.Net.GenericRepository.Caching
             try
             {
                 var options = GetCacheEntryOptions();
-                await _cache.SetAsync(model.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model, _serializerSettings)), options);
+                await _cache.SetAsync(GetCacheKey(model.Id.Value), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model, _serializerSettings)), options);
             }
             catch (Exception ex)
             {
@@ -91,7 +100,7 @@ namespace SDDev.Net.GenericRepository.Caching
         {
             try
             {
-                await _cache.RemoveAsync(id.ToString());
+                await _cache.RemoveAsync(GetCacheKey(id));
             }
             catch (Exception ex)
             {
@@ -110,7 +119,7 @@ namespace SDDev.Net.GenericRepository.Caching
         {
             try
             {
-                var item = await _cache.GetStringAsync(id.ToString());
+                var item = await _cache.GetStringAsync(GetCacheKey(id));
                 if (item != null)
                 {
                     var entity = JsonConvert.DeserializeObject<T>(item, _serializerSettings);
@@ -129,7 +138,7 @@ namespace SDDev.Net.GenericRepository.Caching
                 try
                 {
                     var options = GetCacheEntryOptions();
-                    await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
+                    await _cache.SetAsync(GetCacheKey(result.Id.Value), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
                 }
                 catch (Exception ex)
                 {
@@ -165,7 +174,7 @@ namespace SDDev.Net.GenericRepository.Caching
             try
             {
                 var options = GetCacheEntryOptions();
-                await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
+                await _cache.SetStringAsync(GetCacheKey(model.Id.Value), JsonConvert.SerializeObject(model, _serializerSettings), options);
             }
             catch (Exception ex)
             {
@@ -185,7 +194,7 @@ namespace SDDev.Net.GenericRepository.Caching
             try
             {
                 var options = GetCacheEntryOptions();
-                await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
+                await _cache.SetStringAsync(GetCacheKey(model.Id.Value), JsonConvert.SerializeObject(model, _serializerSettings), options);
             }
             catch (Exception ex)
             {
@@ -204,7 +213,7 @@ namespace SDDev.Net.GenericRepository.Caching
                 try
                 {
                     var options = GetCacheEntryOptions();
-                    await _cache.SetAsync(result.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
+                    await _cache.SetAsync(GetCacheKey(result.Id.Value), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(result, _serializerSettings)), options);
                 }
                 catch (Exception ex)
                 {
@@ -270,6 +279,11 @@ namespace SDDev.Net.GenericRepository.Caching
         public Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null)
         {
             return _repo.Count(predicate, partitionKey);
+        }
+
+        private string GetCacheKey(Guid id)
+        {
+            return $"{typeof(T).Name}:{id}";
         }
 
         private DistributedCacheEntryOptions GetCacheEntryOptions()

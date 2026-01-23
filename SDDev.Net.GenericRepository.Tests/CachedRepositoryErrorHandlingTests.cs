@@ -249,6 +249,36 @@ namespace SDDev.Net.GenericRepository.Tests
             Assert.IsNotNull(cachedRepo2);
         }
 
+        [TestMethod]
+        public void WhenDifferentCacheInstancesUsed_ThenThrowsInvalidOperationException()
+        {
+            // Arrange
+            var cache1 = new MemoryDistributedCache(new OptionsWrapper<Microsoft.Extensions.Caching.Memory.MemoryDistributedCacheOptions>(
+                new Microsoft.Extensions.Caching.Memory.MemoryDistributedCacheOptions()));
+            var cache2 = new MemoryDistributedCache(new OptionsWrapper<Microsoft.Extensions.Caching.Memory.MemoryDistributedCacheOptions>(
+                new Microsoft.Extensions.Caching.Memory.MemoryDistributedCacheOptions()));
+            var genericRepo1 = new GenericRepository<TestObject>(_client, _logger, _cosmos, "Testing");
+            var genericRepo2 = new GenericRepository<TestObject>(_client, _logger, _cosmos, "Testing");
+
+            // Act - Create first repository with cache1
+            var cachedRepo1 = new CachedRepository<TestObject>(_logger, _cosmos, genericRepo1, cache1);
+
+            // Assert - Creating second repository with different cache instance should throw
+            InvalidOperationException exception = null;
+            try
+            {
+                var cachedRepo2 = new CachedRepository<TestObject>(_logger, _cosmos, genericRepo2, cache2);
+            }
+            catch (InvalidOperationException ex)
+            {
+                exception = ex;
+            }
+
+            exception.Should().NotBeNull("Expected InvalidOperationException when using different cache instances");
+            exception.Message.Should().Contain("Multiple IDistributedCache instances detected");
+            exception.Message.Should().Contain("Singleton");
+        }
+
         /// <summary>
         /// A mock IDistributedCache implementation that always throws exceptions
         /// to test error handling behavior.

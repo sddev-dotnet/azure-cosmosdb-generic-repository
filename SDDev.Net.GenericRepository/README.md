@@ -257,7 +257,7 @@ builder.Services.AddScoped<IRepository<MyEntity>>(sp =>
 {
     var innerRepo = sp.GetRequiredService<IRepository<MyEntity>>();
     var cache = sp.GetRequiredService<IDistributedCache>();
-    var logger = sp.GetRequiredService<ILogger<CachedRepository<MyEntity>>>();
+    var logger = sp.GetRequiredService<ILogger<BaseRepository<MyEntity>>>();
     var config = sp.GetRequiredService<IOptions<CosmosDbConfiguration>>();
     
     // Custom configuration: 120 seconds cache, with sliding expiration
@@ -302,10 +302,11 @@ This ensures that Redis connection issues, pool exhaustion, or timeouts don't cr
 
 #### Cache Key Strategy
 
-Cache keys are based on entity ID: `entity.Id.ToString()`. This means:
-- Each entity is cached by its unique ID
-- Different entity types with the same ID will have separate cache entries (they use different `CachedRepository<T>` instances)
-- Cache keys are simple and predictable
+Cache keys include the entity type name to ensure uniqueness: `"{EntityTypeName}:{entity.Id}"`. This means:
+- Each entity is cached by its type name and unique ID (e.g., `"Customer:abc-123"`)
+- Different entity types with the same ID will have separate cache entries, preventing collisions
+- All `CachedRepository<T>` instances share the same underlying `IDistributedCache`, so type-prefixed keys are essential
+- Cache keys are predictable and follow the format `"{TypeName}:{Guid}"`
 
 #### Cache Operations
 

@@ -73,12 +73,12 @@ namespace SDDev.Net.GenericRepository.Caching
         /// Example usage:
         /// <code>
         /// builder.Services.AddStackExchangeRedisCache(options => { ... });
-        /// builder.Services.ValidateAndDecorateWithCaching(); // Validates cache registration
+        /// builder.Services.ValidateCacheRegistrationBeforeDecorating(); // Validates cache registration
         /// builder.Services.AddScoped&lt;IRepository&lt;MyEntity&gt;, GenericRepository&lt;MyEntity&gt;&gt;();
         /// builder.Services.Decorate&lt;IRepository&lt;MyEntity&gt;, CachedRepository&lt;MyEntity&gt;&gt;(); // Requires Scrutor
         /// </code>
         /// </remarks>
-        public static IServiceCollection ValidateAndDecorateWithCaching(this IServiceCollection services)
+        public static IServiceCollection ValidateCacheRegistrationBeforeDecorating(this IServiceCollection services)
         {
             if (services == null)
                 throw new ArgumentNullException(nameof(services));
