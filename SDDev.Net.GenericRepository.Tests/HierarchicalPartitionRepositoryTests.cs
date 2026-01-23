@@ -64,6 +64,10 @@ namespace SDDev.Net.GenericRepository.Tests
 
             _factory = new LoggerFactory();
             _logger = _factory.CreateLogger<HierarchicalPartitionedRepository<TestObject>>();
+
+            // Ensure required database and container exist for hierarchical tests
+            var database = await _client.CreateDatabaseIfNotExistsAsync(cosmos.DefaultDatabaseName);
+            await database.Database.CreateContainerIfNotExistsAsync("TestContainer", "/PartitionKey");
         }
 
         [TestInitialize]

@@ -109,7 +109,7 @@ public class CosmosQueryExtensionNullDependenciesTests
         {
             // ACT
             var firstOrDefaultResult = await _queryable
-                .Where(x => _ids.Contains(x.Id.Value))
+                .Where(x => x.Id == _ids[0] || x.Id == _ids[1] || x.Id == _ids[2])
                 .FirstOrDefaultAsync();
 
             // ASSERT

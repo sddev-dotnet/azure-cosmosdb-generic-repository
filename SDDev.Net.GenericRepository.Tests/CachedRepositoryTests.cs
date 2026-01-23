@@ -1,4 +1,4 @@
-﻿using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -31,6 +31,7 @@ namespace SDDev.Net.GenericRepository.Tests
         private static CosmosClient _client;
         private static ILogger<GenericRepository<TestObject>> _logger;
         private static ILoggerFactory _factory;
+        private static IDistributedCache _sharedCache;
         private CachedRepository<TestObject> _sut;
         private IDistributedCache _cache;
 
@@ -67,14 +68,21 @@ namespace SDDev.Net.GenericRepository.Tests
 
             _factory = new LoggerFactory();
             _logger = _factory.CreateLogger<GenericRepository<TestObject>>();
+
+            // Initialize a single shared cache instance (simulate Singleton registration)
+            var opts = new MemoryDistributedCacheOptions();
+            var options = new OptionsWrapper<MemoryDistributedCacheOptions>(opts);
+            _sharedCache = new MemoryDistributedCache(options);
         }
 
         [TestInitialize]
         public async Task TestInit()
         {
-            var opts = new MemoryDistributedCacheOptions();
-            var options = new OptionsWrapper<MemoryDistributedCacheOptions>(opts);
-            _cache = new MemoryDistributedCache(options);
+            // Reset static cache tracking state to ensure test isolation
+            CachedRepository<TestObject>.ResetCacheTrackingForTesting();
+            
+            // Reuse the shared cache instance across tests
+            _cache = _sharedCache;
             var genericRepo = new GenericRepository<TestObject>(_client, _logger, _cosmos, "Testing");
             _sut = new CachedRepository<TestObject>( _logger, _cosmos, genericRepo, _cache);
         }
@@ -90,7 +98,8 @@ namespace SDDev.Net.GenericRepository.Tests
             var item = await _sut.Create(new TestObject() { Key = "test" });
 
             // Assert
-            var cacheItem = await _cache.GetAsync(item.ToString());
+            var cacheKey = $"TestObject:{item}";
+            var cacheItem = await _cache.GetAsync(cacheKey);
             cacheItem.Should().NotBeNull();
         }
 
@@ -114,7 +123,8 @@ namespace SDDev.Net.GenericRepository.Tests
             // Arrange
             var item = new TestObject() { Key = "test" };
             await _sut.Create(item);
-            await _cache.RemoveAsync(item.Id.ToString());
+            var cacheKey = $"TestObject:{item.Id}";
+            await _cache.RemoveAsync(cacheKey);
 
             // Act
             var result = await _sut.Get(item.Id.Value, item.PartitionKey);
@@ -135,7 +145,8 @@ namespace SDDev.Net.GenericRepository.Tests
             await _sut.Update(item);
 
             // Assert
-            var result = await _cache.GetStringAsync(item.Id.ToString());
+            var cacheKey = $"TestObject:{item.Id}";
+            var result = await _cache.GetStringAsync(cacheKey);
             var testResult = JsonConvert.DeserializeObject<TestObject>(result);
 
 
@@ -191,6 +202,57 @@ namespace SDDev.Net.GenericRepository.Tests
             // Assert
             var result = await _cache.GetStringAsync(cacheItem.ToString());
             result.Should().BeNull();
+        }
+
+        [TestMethod]
+        public async Task WhenDifferentEntityTypesWithSameId_ThenCacheKeysDoNotCollide()
+        {
+            // Arrange
+            var sharedId = Guid.NewGuid();
+            var testObject = new TestObject() { Key = "test", Prop1 = "TestObjectValue" };
+            testObject.Id = sharedId;
+
+            var anotherTestObject = new AnotherTestObject() { Name = "AnotherTestObjectValue", Prop1 = "AnotherProp1" };
+            anotherTestObject.Id = sharedId;
+
+            // Use the same shared cache instance to satisfy singleton validation
+            var sharedCache = _sharedCache;
+
+            var testObjectLogger = _factory.CreateLogger<GenericRepository<TestObject>>();
+            var anotherTestObjectLogger = _factory.CreateLogger<GenericRepository<AnotherTestObject>>();
+            var testObjectRepo = new GenericRepository<TestObject>(_client, testObjectLogger, _cosmos, "Testing");
+            var anotherTestObjectRepo = new GenericRepository<AnotherTestObject>(_client, anotherTestObjectLogger, _cosmos, "AnotherTestObject");
+
+            var cachedTestObjectRepo = new CachedRepository<TestObject>(testObjectLogger, _cosmos, testObjectRepo, sharedCache);
+            var cachedAnotherTestObjectRepo = new CachedRepository<AnotherTestObject>(anotherTestObjectLogger, _cosmos, anotherTestObjectRepo, sharedCache);
+
+            // Act - Create both entities with the same ID
+            await cachedTestObjectRepo.Create(testObject);
+            await cachedAnotherTestObjectRepo.Create(anotherTestObject);
+
+            // Assert - Verify both can be retrieved independently with correct values
+            var retrievedTestObject = await cachedTestObjectRepo.Get(sharedId, testObject.PartitionKey);
+            var retrievedAnotherTestObject = await cachedAnotherTestObjectRepo.Get(sharedId, anotherTestObject.PartitionKey);
+
+            retrievedTestObject.Should().NotBeNull();
+            retrievedTestObject.Prop1.Should().Be("TestObjectValue");
+
+            retrievedAnotherTestObject.Should().NotBeNull();
+            retrievedAnotherTestObject.Name.Should().Be("AnotherTestObjectValue");
+            retrievedAnotherTestObject.Prop1.Should().Be("AnotherProp1");
+
+            // Verify cache keys are prefixed with type names
+            var testObjectCacheKey = $"TestObject:{sharedId}";
+            var anotherTestObjectCacheKey = $"AnotherTestObject:{sharedId}";
+
+            var testObjectCacheValue = await sharedCache.GetStringAsync(testObjectCacheKey);
+            var anotherTestObjectCacheValue = await sharedCache.GetStringAsync(anotherTestObjectCacheKey);
+
+            testObjectCacheValue.Should().NotBeNull("TestObject should be cached with type-prefixed key");
+            anotherTestObjectCacheValue.Should().NotBeNull("AnotherTestObject should be cached with type-prefixed key");
+
+            // Verify the cache entries are different
+            testObjectCacheValue.Should().NotBe(anotherTestObjectCacheValue, "Different entity types should have different cache entries");
         }
     }
 }

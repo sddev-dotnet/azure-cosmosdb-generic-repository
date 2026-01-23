@@ -72,6 +72,12 @@ namespace SDDev.Net.GenericRepository.Tests
 
             _testLogger = _factory.CreateLogger<GenericRepository<TestObject>>();
             _auditableLogger = _factory.CreateLogger<GenericRepository<TestAuditableObject>>();
+
+            // Ensure required containers exist for tests
+            var database = await _client.CreateDatabaseIfNotExistsAsync(cosmos.DefaultDatabaseName);
+            await database.Database.CreateContainerIfNotExistsAsync("Testing", "/PartitionKey");
+            await database.Database.CreateContainerIfNotExistsAsync("BaseTest", "/PartitionKey");
+            await database.Database.CreateContainerIfNotExistsAsync("AnotherTestObject", "/PartitionKey");
         }
 
         [ClassCleanup]
