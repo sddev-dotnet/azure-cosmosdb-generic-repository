@@ -5,6 +5,7 @@ using SDDev.Net.GenericRepository.CosmosDB.Utilities.FeedIterator;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System; // needed for Exception
 
 namespace SDDev.Net.GenericRepository.CosmosDB.Utilities;
 public static class CosmosQueryExtensions
@@ -122,7 +123,16 @@ public static class CosmosQueryExtensions
 
     private static string LogQuery<TEntity>(IQueryable<TEntity> queryable)
     {
-        var query = queryable.ToString();
+        string query;
+        try
+        {
+            query = queryable.ToString();
+        }
+        catch (Exception)
+        {
+            // Some expressions are not supported by Cosmos LINQ ToString() rendering. Fall back to a placeholder.
+            query = "<Query text unavailable>";
+        }
         _logger?.LogDebug("Executing query: {query}", query);
         return query;
     }

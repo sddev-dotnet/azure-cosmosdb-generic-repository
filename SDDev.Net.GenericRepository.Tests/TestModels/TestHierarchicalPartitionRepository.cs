@@ -18,8 +18,7 @@ namespace SDDev.Net.GenericRepository.Tests.TestModels
             CosmosClient client, 
             ILogger<HierarchicalPartitionedRepository<TestModels.TestObject>> log, 
             IOptions<CosmosDbConfiguration> config) : base(client, log, config, new List<string>() { 
-                "PartitionKey",
-                "Prop1"
+                "PartitionKey"
             }, "TestContainer")
         {
         }

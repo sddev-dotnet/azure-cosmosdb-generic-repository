@@ -62,6 +62,10 @@ namespace SDDev.Net.GenericRepository.Tests
 
             _factory = new LoggerFactory();
             _logger = _factory.CreateLogger<GenericRepository<TestObject>>();
+
+            // Ensure the database and container exist before running tests
+            var database = await _client.CreateDatabaseIfNotExistsAsync(cosmos.DefaultDatabaseName);
+            await database.Database.CreateContainerIfNotExistsAsync("Testing", "/PartitionKey");
         }
 
         [TestMethod]
@@ -133,7 +137,7 @@ namespace SDDev.Net.GenericRepository.Tests
             await genericRepo.Create(item);
 
             // Act - Should not throw exception even though cache fails
-            await sut.Delete(item.Id.Value, item.PartitionKey);
+            await sut.Delete(item.Id.Value, item.PartitionKey, true);
 
             // Assert
             var dbItem = await genericRepo.Get(item.Id.Value, item.PartitionKey);
