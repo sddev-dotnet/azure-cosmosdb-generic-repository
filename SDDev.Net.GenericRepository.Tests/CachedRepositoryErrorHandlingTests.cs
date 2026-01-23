@@ -68,6 +68,13 @@ namespace SDDev.Net.GenericRepository.Tests
             await database.Database.CreateContainerIfNotExistsAsync("Testing", "/PartitionKey");
         }
 
+        [TestInitialize]
+        public void TestInit()
+        {
+            // Reset static cache tracking state to ensure test isolation
+            CachedRepository<TestObject>.ResetCacheTrackingForTesting();
+        }
+
         [TestMethod]
         public async Task WhenCacheGetFails_ThenRepositoryOperationContinues()
         {

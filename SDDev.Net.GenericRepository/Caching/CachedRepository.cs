@@ -59,7 +59,11 @@ namespace SDDev.Net.GenericRepository.Caching
             // This indicates transient/scoped registration which causes connection pool exhaustion
             lock (_trackingLock)
             {
-                if (_trackedCacheInstances.Count > 0 && !_trackedCacheInstances.Contains(cache))
+                // Add returns true if the element was added, false if it already existed
+                bool wasAdded = _trackedCacheInstances.Add(cache);
+                
+                // If we added a new instance and there was already at least one tracked instance, throw exception
+                if (wasAdded && _trackedCacheInstances.Count > 1)
                 {
                     throw new InvalidOperationException(
                         "Multiple IDistributedCache instances detected. " +
@@ -68,8 +72,6 @@ namespace SDDev.Net.GenericRepository.Caching
                         "Solution: Use AddStackExchangeRedisCache() which registers as Singleton by default, or ensure your cache registration uses AddSingleton<IDistributedCache>(). " +
                         "For validation, call builder.Services.ValidateDistributedCacheRegistration() after registering your cache.");
                 }
-
-                _trackedCacheInstances.Add(cache);
             }
 
             _cache = cache;
@@ -301,6 +303,19 @@ namespace SDDev.Net.GenericRepository.Caching
             }
 
             return options;
+        }
+
+        /// <summary>
+        /// Resets the static cache instance tracking state. Intended for use in tests
+        /// to avoid cross-test interference when multiple IDistributedCache instances
+        /// are created across different test runs in the same AppDomain.
+        /// </summary>
+        internal static void ResetCacheTrackingForTesting()
+        {
+            lock (_trackingLock)
+            {
+                _trackedCacheInstances.Clear();
+            }
         }
     }
 }

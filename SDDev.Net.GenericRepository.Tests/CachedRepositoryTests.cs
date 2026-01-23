@@ -78,6 +78,9 @@ namespace SDDev.Net.GenericRepository.Tests
         [TestInitialize]
         public async Task TestInit()
         {
+            // Reset static cache tracking state to ensure test isolation
+            CachedRepository<TestObject>.ResetCacheTrackingForTesting();
+            
             // Reuse the shared cache instance across tests
             _cache = _sharedCache;
             var genericRepo = new GenericRepository<TestObject>(_client, _logger, _cosmos, "Testing");
