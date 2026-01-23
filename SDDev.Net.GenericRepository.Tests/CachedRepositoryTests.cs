@@ -218,7 +218,7 @@ namespace SDDev.Net.GenericRepository.Tests
             var testObjectLogger = _factory.CreateLogger<GenericRepository<TestObject>>();
             var anotherTestObjectLogger = _factory.CreateLogger<GenericRepository<AnotherTestObject>>();
             var testObjectRepo = new GenericRepository<TestObject>(_client, testObjectLogger, _cosmos, "Testing");
-            var anotherTestObjectRepo = new GenericRepository<AnotherTestObject>(_client, anotherTestObjectLogger, _cosmos, "Testing");
+            var anotherTestObjectRepo = new GenericRepository<AnotherTestObject>(_client, anotherTestObjectLogger, _cosmos, "AnotherTestObject");
 
             var cachedTestObjectRepo = new CachedRepository<TestObject>(testObjectLogger, _cosmos, testObjectRepo, sharedCache);
             var cachedAnotherTestObjectRepo = new CachedRepository<AnotherTestObject>(anotherTestObjectLogger, _cosmos, anotherTestObjectRepo, sharedCache);
