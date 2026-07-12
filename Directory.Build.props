@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    Single source of truth for the package version across all projects. The main library and the
+    Contracts package are versioned in lockstep and published together (the main library references
+    Contracts via ProjectReference). The release workflow overrides this via -p:Version from the git
+    tag; this value is the local/dev default.
+  -->
+  <PropertyGroup>
+    <Version>10.1.0</Version>
+  </PropertyGroup>
+
+</Project>

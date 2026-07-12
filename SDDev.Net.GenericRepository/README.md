@@ -145,6 +145,26 @@ public class MyService
 }
 ```
 
+### Cancellation
+
+Every asynchronous repository method has a `CancellationToken` overload:
+
+```csharp
+public async Task<MyEntity> GetAsync(Guid id, string partitionKey, CancellationToken cancellationToken)
+{
+    return await _repository.Get(id, partitionKey, cancellationToken);
+}
+```
+
+- The token is threaded into the underlying Cosmos DB SDK calls (and the Azure Search / distributed
+  cache calls in the indexed and cached decorators), so long-running queries and writes can be
+  cancelled cooperatively.
+- The `CancellationToken` parameter is **required** on these overloads (it has no default value). This
+  keeps existing call sites that omit a token completely unaffected and avoids overload-resolution
+  ambiguity.
+- The overloads are declared as default interface methods on `IRepository<T>`, so if you have your own
+  `IRepository<T>` implementation it keeps compiling without changes.
+
 ### Continuation tokens and paging
 
 `SearchModel.ContinuationToken` accepts a base64 encoded token returned from a previous query. Set the token on subsequent requests to fetch the next page. You can also use `Offset` for small paged queries; Cosmos DB recommends continuation tokens for production workloads.

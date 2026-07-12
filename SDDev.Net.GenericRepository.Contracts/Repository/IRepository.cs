@@ -4,6 +4,7 @@ using SDDev.Net.GenericRepository.Contracts.Search;
 using System;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.Contracts.Repository
@@ -78,5 +79,54 @@ namespace SDDev.Net.GenericRepository.Contracts.Repository
         Task Delete(Guid id, string partitionKey, bool force = false);
 
         Task Delete(T model, bool force = false);
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // CancellationToken overloads.
+        //
+        // These are default interface methods so existing external implementers of
+        // IRepository<T> keep compiling without changes. The default bodies forward to the
+        // tokenless members on a best-effort basis (the token is not observed). The
+        // repositories shipped in this library override these to honor the token.
+        //
+        // The CancellationToken parameter is intentionally required (no default value) so
+        // these overloads never collide with the tokenless members during overload
+        // resolution.
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        Task<T> Get(Guid id, string partitionKey, CancellationToken cancellationToken)
+            => Get(id, partitionKey);
+
+        Task<ISearchResult<T>> Get(Expression<Func<T, bool>> predicate, ISearchModel model, CancellationToken cancellationToken)
+            => Get(predicate, model);
+
+        Task<ISearchResult<T>> Get(string query, ISearchModel model, CancellationToken cancellationToken)
+            => Get(query, model);
+
+        Task<ISearchResult<T>> GetAll(Expression<Func<T, bool>> predicate, ISearchModel model, CancellationToken cancellationToken)
+            => GetAll(predicate, model);
+
+        Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey, bool singleResult, CancellationToken cancellationToken)
+            => FindOne(predicate, partitionKey, singleResult);
+
+        Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey, CancellationToken cancellationToken)
+            => Count(predicate, partitionKey);
+
+        Task<Guid> Upsert(T model, CancellationToken cancellationToken)
+            => Upsert(model);
+
+        Task<Guid> Create(T model, CancellationToken cancellationToken)
+            => Create(model);
+
+        Task<Guid> Update(T model, CancellationToken cancellationToken)
+            => Update(model);
+
+        Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection, CancellationToken cancellationToken)
+            => Patch(id, partitionKey, operationCollection);
+
+        Task Delete(Guid id, string partitionKey, bool force, CancellationToken cancellationToken)
+            => Delete(id, partitionKey, force);
+
+        Task Delete(T model, bool force, CancellationToken cancellationToken)
+            => Delete(model, force);
     }
 }

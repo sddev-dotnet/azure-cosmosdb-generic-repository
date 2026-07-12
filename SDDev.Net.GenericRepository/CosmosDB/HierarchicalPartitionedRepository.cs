@@ -16,6 +16,7 @@ using System.Linq.Expressions;
 using System.Net;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.CosmosDB
@@ -124,6 +125,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <param name="id"></param>
         /// <param name="partitionKey"></param>
         /// <returns></returns>
+        // The hierarchical point-read differs from the base single-key read, so override the token
+        // overload to route to this repository's own logic. (Token threading into the feed iterator
+        // is a follow-up; results are correct today.)
+        public override Task<TModel> Get(Guid id, string partitionKey, CancellationToken cancellationToken)
+            => Get(id, partitionKey);
+
         public override async Task<TModel> Get(Guid id, string partitionKey = null)
         {
             if (string.IsNullOrEmpty(partitionKey))
@@ -160,6 +167,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         }
 
 
+        // Route the token overload to this repository's hierarchical delete logic (see Get above).
+        public override Task Delete(Guid id, string partitionKey, bool force, CancellationToken cancellationToken)
+            => Delete(id, partitionKey, force);
+
         public override async Task Delete(Guid id, string partitionKey, bool force = false)
         {
 
@@ -189,7 +200,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
-        public override Task<ISearchResult<TModel>> Get(string query, ISearchModel model){
+        public override Task<ISearchResult<TModel>> Get(string query, ISearchModel model)
+            => Get(query, model, CancellationToken.None);
+
+        public override Task<ISearchResult<TModel>> Get(string query, ISearchModel model, CancellationToken cancellationToken){
             var queryOptions = new QueryRequestOptions()
             {
                 MaxItemCount = model.PageSize,
@@ -212,10 +226,13 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 .Where(x => x.ItemType.Contains(typeof(TModel).Name)) //force filtering by Item Type
                 .Where(query);
 
-            return GetResults(q, model);
+            return GetResults(q, model, cancellationToken);
         }
 
         public override Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model)
+            => Get(predicate, model, CancellationToken.None);
+
+        public override Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model, CancellationToken cancellationToken)
         {
             var queryOptions = new QueryRequestOptions()
             {
@@ -240,11 +257,14 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 .Where(predicate);
             //.ToFeedIterator();
 
-            return GetResults(query, model);
+            return GetResults(query, model, cancellationToken);
 
         }
 
-        protected virtual async Task<ISearchResult<TModel>> GetResults(IQueryable<TModel> query, ISearchModel model)
+        protected virtual Task<ISearchResult<TModel>> GetResults(IQueryable<TModel> query, ISearchModel model)
+            => GetResults(query, model, CancellationToken.None);
+
+        protected virtual async Task<ISearchResult<TModel>> GetResults(IQueryable<TModel> query, ISearchModel model, CancellationToken cancellationToken)
         {
             var response = new SearchResult<TModel>() { PageSize = model.PageSize };
             if (!string.IsNullOrEmpty(model.SortByField))
@@ -256,7 +276,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             if (string.IsNullOrEmpty(model.ContinuationToken))
             {
 
-                var totalResultsCount = await query.CountAsync().ConfigureAwait(false);
+                var totalResultsCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
                 response.TotalResults = totalResultsCount;
 
                 if (totalResultsCount > 500)
@@ -272,7 +292,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             Log.LogDebug(query.ToString());
 
             var result = query.ToFeedIterator();
-            var res = await result.ReadNextAsync().ConfigureAwait(false);
+            var res = await result.ReadNextAsync(cancellationToken).ConfigureAwait(false);
 
             if (Configuration.PopulateIndexMetrics)
             {
@@ -295,7 +315,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             {
                 while (response.Results.Count < model.PageSize && !string.IsNullOrEmpty(res.ContinuationToken))
                 {
-                    res = await result.ReadNextAsync().ConfigureAwait(false);
+                    res = await result.ReadNextAsync(cancellationToken).ConfigureAwait(false);
                     ((List<TModel>)response.Results).AddRange(res.ToList());
                     continuation = res.ContinuationToken;
                 }
