@@ -21,6 +21,7 @@ using SDDev.Net.GenericRepository.Contracts.Search;
 namespace SDDev.Net.GenericRepository.Tests;
 
 [TestClass]
+[TestCategory("INTEGRATION")]
 public class CosmosQueryExtensionNullDependenciesTests
 {
     private static CosmosClient _client;

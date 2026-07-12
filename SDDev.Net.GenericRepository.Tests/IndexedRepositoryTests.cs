@@ -27,6 +27,7 @@ using SDDev.Net.GenericRepository.CosmosDB.Patch.AzureSearch;
 namespace SDDev.Net.GenericRepository.Tests
 {
     [TestClass]
+    [TestCategory("INTEGRATION")]
     public class IndexedRepositoryTests
     {
         private static IConfiguration _config;

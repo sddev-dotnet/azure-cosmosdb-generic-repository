@@ -25,8 +25,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 	/// <typeparam name="TModel"></typeparam>
 	public class GenericRepository<TModel> : BaseRepository<TModel> where TModel : class, IStorableEntity
     {
-        private string _defaultPartitionKey;
-
         public override async Task<TModel> Get(Guid id, string partitionKey = null)
         {
             try
@@ -48,7 +46,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
             catch (Exception e)
             {
-                Log.LogError($"There was a problem with the GET operation for object {typeof(TModel).Name}", e);
+                Log.LogError(e, "There was a problem with the GET operation for object {ModelName}", typeof(TModel).Name);
                 throw;
             }
         }
@@ -203,8 +201,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             if (!string.IsNullOrEmpty(model.SortByField))
             {
                 var order = $"{model.SortByField} {(model.SortAscending ? "ASC" : "DESC")}";
-                q.OrderBy(order);
-            };
+                q = q.OrderBy(order);
+            }
 
             if (includeTotalCount && string.IsNullOrEmpty(model.ContinuationToken))
             {
@@ -220,10 +218,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             if (model.Offset > 0)
             {
-                query.Skip(model.Offset).Take(model.PageSize);
+                q = q.Skip(model.Offset).Take(model.PageSize);
             }
 
-            Log.LogDebug(query.ToString());
+            Log.LogDebug(q.ToString());
 
             var result = q.ToFeedIterator();
 
@@ -331,6 +329,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 if (model is IAuditableEntity)
                 {
                     var auditable = model as IAuditableEntity;
+                    auditable.AuditMetadata ??= new AuditMetadata();
                     auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
                 }
 
@@ -390,7 +389,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
                 if (model == null)
                 {
-                    Log.LogWarning($"Item with Id {model.Id} could not be found. It must already be deleted or the incorrect partition key was supplied.");
+                    Log.LogWarning("Null model passed to Delete; item may already be deleted or the incorrect partition key was supplied. Nothing to delete.");
                     return;
                 }
 
@@ -441,7 +440,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
             catch (Exception ex)
             {
-                Log.LogError("Problem creating document.", ex);
+                Log.LogError(ex, "Problem creating document.");
                 throw;
             }
         }
@@ -453,6 +452,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 if (model is IAuditableEntity)
                 {
                     var auditable = model as IAuditableEntity;
+                    auditable.AuditMetadata ??= new AuditMetadata();
                     auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
                 }
 
@@ -463,7 +463,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
             catch (Exception ex)
             {
-                Log.LogError("Failed to update document", ex);
+                Log.LogError(ex, "Failed to update document");
                 throw;
             }
         }
@@ -556,6 +556,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                         Log.LogDebug($"CosmosDb FindOne query. RU cost:{res.RequestCharge}");
 
                         items.AddRange(res);
+
+                        // FirstOrDefault only needs the first item; stop draining further pages.
+                        if (items.Count >= 1)
+                            break;
                     }
 
                     if (indexMetrics != null)
@@ -596,6 +600,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                         }
 
                         items.AddRange(response);
+
+                        // SingleOrDefault needs at most two items to detect non-uniqueness; stop once we have them.
+                        if (items.Count >= 2)
+                            break;
                     }
 
                     if (indexMetrics != null)
@@ -642,8 +650,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             string databaseName = null,
             string partitionKey = null) : base(client, log, config, collectionName, databaseName, partitionKey)
         {
-            var defaultInstance = Activator.CreateInstance<TModel>();
-            _defaultPartitionKey = defaultInstance.PartitionKey;
         }
 
         public GenericRepository(
@@ -654,8 +660,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             string databaseName = null,
             string partitionKey = null) : base(client, log, config, collectionName, databaseName, partitionKey)
         {
-            var defaultInstance = Activator.CreateInstance<TModel>();
-            _defaultPartitionKey = defaultInstance.PartitionKey;
         }
     }
 }

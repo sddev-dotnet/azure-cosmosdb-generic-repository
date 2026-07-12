@@ -20,6 +20,7 @@ using SDDev.Net.GenericRepository.Utilities;
 namespace SDDev.Net.GenericRepository.Tests
 {
     [TestClass]
+    [TestCategory("INTEGRATION")]
     public class CosmosDBHelperTests
     {
         private static IConfiguration _config;

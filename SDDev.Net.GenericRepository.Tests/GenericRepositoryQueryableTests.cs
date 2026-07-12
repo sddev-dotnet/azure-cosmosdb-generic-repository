@@ -22,6 +22,7 @@ using System.Linq.Expressions;
 namespace SDDev.Net.GenericRepository.Tests;
 
 [TestClass]
+[TestCategory("INTEGRATION")]
 public class GenericRepositoryQueryableTests
 {
     private static IConfiguration _config;

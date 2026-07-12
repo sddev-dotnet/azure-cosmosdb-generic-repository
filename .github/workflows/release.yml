@@ -1,7 +1,9 @@
 on:
   push:
     tags:
+      # Accept both "v"-prefixed and bare semver tags.
       - "v[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+"
 name: Build and Publish NuGet Packages
 
 jobs:
@@ -10,12 +12,26 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          # Full history is required for the HEAD~1 change detection below.
+          fetch-depth: 0
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v2
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "7.x"
+          global-json-file: global.json
+
+      - name: Determine package version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag '$GITHUB_REF_NAME' does not resolve to a valid semver version." >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        shell: bash
 
       - name: Determine changes in Contracts
         id: changes-contracts
@@ -32,13 +48,11 @@ jobs:
       - name: Build and Publish Contracts
         if: env.changed_contracts == 'true'
         run: |
-          dotnet build SDDev.Net.GenericRepository.Contracts/SDDev.Net.GenericRepository.Contracts.csproj
-          dotnet pack SDDev.Net.GenericRepository.Contracts/SDDev.Net.GenericRepository.Contracts.csproj -o ./SDDev.Net.GenericRepository.Contracts/output
-          dotnet nuget push ./SDDev.Net.GenericRepository.Contracts/output/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+          dotnet pack SDDev.Net.GenericRepository.Contracts/SDDev.Net.GenericRepository.Contracts.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.version }} -p:Version=${{ steps.version.outputs.version }} -p:ContinuousIntegrationBuild=true -o ./SDDev.Net.GenericRepository.Contracts/output
+          dotnet nuget push ./SDDev.Net.GenericRepository.Contracts/output/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Build and Publish Repositories
         if: env.changed_repositories == 'true'
         run: |
-          dotnet build SDDev.Net.GenericRepository/SDDev.Net.GenericRepository.csproj
-          dotnet pack SDDev.Net.GenericRepository/SDDev.Net.GenericRepository.csproj -o ./SDDev.Net.GenericRepository/output
-          dotnet nuget push ./SDDev.Net.GenericRepository/output/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+          dotnet pack SDDev.Net.GenericRepository/SDDev.Net.GenericRepository.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.version }} -p:Version=${{ steps.version.outputs.version }} -p:ContinuousIntegrationBuild=true -o ./SDDev.Net.GenericRepository/output
+          dotnet nuget push ./SDDev.Net.GenericRepository/output/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate

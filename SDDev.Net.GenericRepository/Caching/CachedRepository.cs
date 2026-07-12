@@ -48,7 +48,7 @@ namespace SDDev.Net.GenericRepository.Caching
             var item = await _repo.Create(model);
 
             var options = GetCacheEntryOptions();
-            await _cache.SetAsync(model.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model)), options);
+            await _cache.SetAsync(model.Id.ToString(), Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model, _serializerSettings)), options);
 
             return item;
         }
@@ -106,22 +106,32 @@ namespace SDDev.Net.GenericRepository.Caching
 
         public async Task<Guid> Update(T model)
         {
+            // Write to the database first; only cache after the write succeeds so a failed
+            // write cannot poison the cache with unpersisted state.
+            var result = await _repo.Update(model);
+
             var options = GetCacheEntryOptions();
             await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
 
-            return await _repo.Update(model);
+            return result;
         }
 
-        public Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection)
+        public async Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection)
         {
-            return _repo.Patch(id, partitionKey, operationCollection);
+            // Patch operations are not trivially replayable against the cached full-document copy,
+            // so evict after a successful patch and let the next Get repopulate from Cosmos.
+            await _repo.Patch(id, partitionKey, operationCollection);
+            await _cache.RemoveAsync(id.ToString());
         }
 
         public async Task<Guid> Upsert(T model)
         {
+            // Write to the database first; only cache after the write succeeds.
+            var result = await _repo.Upsert(model);
+
             var options = GetCacheEntryOptions();
             await _cache.SetStringAsync(model.Id.ToString(), JsonConvert.SerializeObject(model, _serializerSettings), options);
-            return await _repo.Upsert(model);
+            return result;
         }
 
         public async Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false)

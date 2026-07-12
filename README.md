@@ -2,7 +2,7 @@
 
 The **SDDev.Net.GenericRepository** package implements the repository pattern on top of Azure Cosmos DB. It allows you to model your data as Plain Old C# Objects (POCOs) while the library handles container access, partition routing, query construction, and cross-cutting features such as caching, indexing, and patch updates. The goal is to make the common 90% of Cosmos DB development frictionless while still giving you escape hatches (for example, direct access to the `Container` client) for the remaining scenarios.
 
-> **Prerequisite:** The repository targets **.NET 9**. Install the [.NET 9 SDK](https://dotnet.microsoft.com/download) before building the solution or referencing the package.
+> **Prerequisite:** The repository targets **.NET 10**. Install the [.NET 10 SDK](https://dotnet.microsoft.com/download) before building the solution or referencing the package.
 
 The repository project ships together with a contracts package that contains base entity abstractions and search helpers. This repository hosts both packages, a test suite, and an example application that demonstrate how to use the tooling end-to-end.
 
@@ -19,7 +19,7 @@ The repository project ships together with a contracts package that contains bas
 
 ## Packages
 
-Add the following packages to your application (both target .NET 9):
+Add the following packages to your application (both target .NET 10):
 
 ```bash
  dotnet add package SDDev.Net.GenericRepository
@@ -191,7 +191,7 @@ builder.Services.AddScoped<IRepository<MyEntity>, GenericRepository<MyEntity>>()
 builder.Services.Decorate<IRepository<MyEntity>, CachedRepository<MyEntity>>();
 ```
 
-- Cache entries default to a 60 second sliding window.
+- By default, cache entries have **no expiration** and live until explicitly evicted (`Evict`/`Delete`) or removed by the underlying `IDistributedCache`. Pass `refreshCache: true` to the `CachedRepository<T>` constructor to enable a sliding expiration window (default 60 seconds, configurable via `cacheSeconds`).
 - Call `ICachedRepository<T>.Evict` or `Delete` to remove cache entries explicitly when executing cross-entity operations.
 
 ### Hierarchical partition keys

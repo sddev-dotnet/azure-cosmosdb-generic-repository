@@ -56,4 +56,47 @@ public class CosmosQueryExtensionTests
         firstOrDefault.Id.Should().Be(testObject2.Id);
         singleOrDefault.Id.Should().Be(testObject1.Id);
     }
+
+    [TestMethod]
+    public async Task WhenFirstPageIsEmpty_ThenFirstOrDefaultAsyncReturnsAnItemFromLaterPages()
+    {
+        // ARRANGE — regression for the bug where FirstOrDefaultAsync read only the first page and
+        // returned default when that page was empty. Page size 1 with an empty leading page.
+        CosmosQueryExtensions.FeedIteratorProvider = new MockFeedIteratorProvider(1, prependEmptyPage: true);
+
+        var partitionKey = Guid.NewGuid().ToString();
+        var queryable = new[]
+        {
+            new TestObject { Id = Guid.NewGuid(), Key = partitionKey, Number = 1 },
+            new TestObject { Id = Guid.NewGuid(), Key = partitionKey, Number = 2 },
+        }.AsQueryable();
+
+        // ACT
+        var first = await queryable.FirstOrDefaultAsync();
+
+        // ASSERT
+        first.Should().NotBeNull();
+        first.Number.Should().Be(1);
+    }
+
+    [TestMethod]
+    public async Task WhenTwoMatchesSpanMultiplePages_ThenSingleOrDefaultAsyncThrows()
+    {
+        // ARRANGE — regression for the bug where SingleOrDefaultAsync read only the first page and
+        // silently returned the first item instead of detecting the second match on a later page.
+        CosmosQueryExtensions.FeedIteratorProvider = new MockFeedIteratorProvider(1);
+
+        var partitionKey = Guid.NewGuid().ToString();
+        var queryable = new[]
+        {
+            new TestObject { Id = Guid.NewGuid(), Key = partitionKey, Number = 1 },
+            new TestObject { Id = Guid.NewGuid(), Key = partitionKey, Number = 1 },
+        }.AsQueryable();
+
+        // ACT
+        Func<Task> act = async () => await queryable.Where(x => x.Number == 1).SingleOrDefaultAsync();
+
+        // ASSERT
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
 }

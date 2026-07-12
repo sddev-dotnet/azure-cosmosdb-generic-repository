@@ -75,7 +75,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
             var logger = host.Services.GetRequiredService<ILogger>();
             var config = host.Services.GetRequiredService<IOptions<CosmosDbConfiguration>>();
-            CosmosQueryExtensions.InitializeDependenices(logger, config);
+            CosmosQueryExtensions.InitializeDependencies(logger, config);
         }
 
         private static void RegisterServices(IServiceCollection services, IConfiguration configuration)
