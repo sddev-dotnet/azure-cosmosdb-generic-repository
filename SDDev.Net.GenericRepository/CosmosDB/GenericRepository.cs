@@ -34,7 +34,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             try
             {
                 if (string.IsNullOrEmpty(partitionKey))
-                    return await FindOne(x => x.Id == id).ConfigureAwait(false);
+                    return await FindOne(x => x.Id == id, null, false, cancellationToken).ConfigureAwait(false);
 
                 var resp = await Client.ReadItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey), cancellationToken: cancellationToken);
                 Log.LogDebug($"CosmosDb query. RU cost:{resp.RequestCharge}");
@@ -61,7 +61,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <param name="predicate"></param>
         /// <param name="model"></param>
         /// <returns></returns>
-        public override async Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model)
+        public override Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model)
+            => Get(predicate, model, CancellationToken.None);
+
+        public virtual async Task<ISearchResult<TModel>> Get(Expression<Func<TModel, bool>> predicate, ISearchModel model, CancellationToken cancellationToken)
         {
             var queryOptions = new QueryRequestOptions()
             {
@@ -106,7 +109,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             if (includeTotalCount && string.IsNullOrEmpty(model.ContinuationToken))
             {
 
-                var totalResultsCount = await query.CountAsync().ConfigureAwait(false);
+                var totalResultsCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
                 response.TotalResults = totalResultsCount;
 
                 if (totalResultsCount > 500)
@@ -123,7 +126,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             Log.LogDebug(query.ToString());
 
             var result = query.ToFeedIterator();
-            var res = await result.ReadNextAsync();
+            var res = await result.ReadNextAsync(cancellationToken);
 
             if (Configuration.PopulateIndexMetrics)
             {
@@ -146,7 +149,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             {
                 while (response.Results.Count < model.PageSize && !string.IsNullOrEmpty(res.ContinuationToken))
                 {
-                    res = await result.ReadNextAsync();
+                    res = await result.ReadNextAsync(cancellationToken);
                     ((List<TModel>)response.Results).AddRange(res.ToList());
                     continuation = res.ContinuationToken;
                 }
@@ -167,7 +170,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <param name="query"></param>
         /// <param name="model"></param>
         /// <returns></returns>
-        public async override Task<ISearchResult<TModel>> Get(string query, ISearchModel model)
+        public override Task<ISearchResult<TModel>> Get(string query, ISearchModel model)
+            => Get(query, model, CancellationToken.None);
+
+        public virtual async Task<ISearchResult<TModel>> Get(string query, ISearchModel model, CancellationToken cancellationToken)
         {
             var queryOptions = new QueryRequestOptions()
             {
@@ -210,7 +216,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             if (includeTotalCount && string.IsNullOrEmpty(model.ContinuationToken))
             {
-                var totalResultsCount = await q.CountAsync().ConfigureAwait(false);
+                var totalResultsCount = await q.CountAsync(cancellationToken).ConfigureAwait(false);
 
                 response.TotalResults = totalResultsCount;
 
@@ -229,7 +235,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             var result = q.ToFeedIterator();
 
-            var res = await result.ReadNextAsync();
+            var res = await result.ReadNextAsync(cancellationToken);
 
             if (Configuration.PopulateIndexMetrics)
             {
@@ -249,7 +255,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             {
                 while (response.Results.Count < model.PageSize && !string.IsNullOrEmpty(res.ContinuationToken))
                 {
-                    res = await result.ReadNextAsync();
+                    res = await result.ReadNextAsync(cancellationToken);
                     ((List<TModel>)response.Results).AddRange(res.ToList());
                 }
             }
@@ -513,14 +519,17 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             Log.LogDebug($"CosmosDB patch RU cost: {response.RequestCharge}");
         }
 
-        public override async Task<ISearchResult<TModel>> GetAll(Expression<Func<TModel, bool>> predicate, ISearchModel model)
+        public override Task<ISearchResult<TModel>> GetAll(Expression<Func<TModel, bool>> predicate, ISearchModel model)
+            => GetAll(predicate, model, CancellationToken.None);
+
+        public virtual async Task<ISearchResult<TModel>> GetAll(Expression<Func<TModel, bool>> predicate, ISearchModel model, CancellationToken cancellationToken)
         {
             var results = new List<TModel>();
             try
             {
                 do
                 {
-                    var partial = await Get(predicate, model);
+                    var partial = await Get(predicate, model, cancellationToken);
                     model.ContinuationToken = partial.ContinuationToken;
                     results.AddRange(partial.Results);
                 } while (!string.IsNullOrEmpty(model.ContinuationToken));
@@ -543,7 +552,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
         }
 
-        public override async Task<TModel> FindOne(Expression<Func<TModel, bool>> predicate, string partitionKey = null, bool singleResult = false)
+        public override Task<TModel> FindOne(Expression<Func<TModel, bool>> predicate, string partitionKey = null, bool singleResult = false)
+            => FindOne(predicate, partitionKey, singleResult, CancellationToken.None);
+
+        public virtual async Task<TModel> FindOne(Expression<Func<TModel, bool>> predicate, string partitionKey, bool singleResult, CancellationToken cancellationToken)
         {
             var queryOptions = new QueryRequestOptions()
             {
@@ -571,7 +583,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     string indexMetrics = null;
                     while (iterator.HasMoreResults)
                     {
-                        var res = await iterator.ReadNextAsync();
+                        var res = await iterator.ReadNextAsync(cancellationToken);
 
                         if (Configuration.PopulateIndexMetrics && indexMetrics == null)
                         {
@@ -617,7 +629,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     string indexMetrics = null;
                     while (iterator.HasMoreResults)
                     {
-                        var response = await iterator.ReadNextAsync();
+                        var response = await iterator.ReadNextAsync(cancellationToken);
 
                         if (Configuration.PopulateIndexMetrics && indexMetrics == null)
                         {

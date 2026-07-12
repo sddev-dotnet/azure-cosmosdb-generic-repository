@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.Indexing
@@ -107,12 +108,14 @@ namespace SDDev.Net.GenericRepository.Indexing
             }
         }
 
-        public virtual async Task<Guid> Create(T model)
+        public virtual Task<Guid> Create(T model) => Create(model, CancellationToken.None);
+
+        public virtual async Task<Guid> Create(T model, CancellationToken cancellationToken)
         {
             Validate();
 
             // insert document into repository
-            var result = await _repository.Create(model);
+            var result = await _repository.Create(model, cancellationToken);
 
             // map to index model
             var indexModel = await PerformMap(model).ConfigureAwait(false);
@@ -121,7 +124,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             var batch = IndexDocumentsBatch.Create(
                 IndexDocumentsAction.MergeOrUpload(indexModel)
             );
-            var resp = await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            var resp = await _searchClient.IndexDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             return result;
         }
@@ -153,10 +156,13 @@ namespace SDDev.Net.GenericRepository.Indexing
             return result;
         }
 
-        public virtual async Task Delete(Guid id, string partitionKey, bool force = false)
+        public virtual Task Delete(Guid id, string partitionKey, bool force = false)
+            => Delete(id, partitionKey, force, CancellationToken.None);
+
+        public virtual async Task Delete(Guid id, string partitionKey, bool force, CancellationToken cancellationToken)
         {
             Validate();
-            var entity = await _repository.Get(id, partitionKey);
+            var entity = await _repository.Get(id, partitionKey, cancellationToken);
 
             if (entity == null)
             {
@@ -164,58 +170,79 @@ namespace SDDev.Net.GenericRepository.Indexing
                 return;
             }
 
-            await _repository.Delete(entity, force).ConfigureAwait(false);
+            await _repository.Delete(entity, force, cancellationToken).ConfigureAwait(false);
 
             var indexModel = _mapper.Map<Y>(entity);
             var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
-            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            await _searchClient.IndexDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
-        public virtual async Task Delete(T model, bool force = false)
+        public virtual Task Delete(T model, bool force = false)
+            => Delete(model, force, CancellationToken.None);
+
+        public virtual async Task Delete(T model, bool force, CancellationToken cancellationToken)
         {
             Validate();
 
-            await _repository.Delete(model, force).ConfigureAwait(false);
+            await _repository.Delete(model, force, cancellationToken).ConfigureAwait(false);
 
             var indexModel = _mapper.Map<Y>(model);
             var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
-            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            await _searchClient.IndexDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         public virtual Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey = null, bool singleResult = false)
+            => FindOne(predicate, partitionKey, singleResult, CancellationToken.None);
+
+        public virtual Task<T> FindOne(Expression<Func<T, bool>> predicate, string partitionKey, bool singleResult, CancellationToken cancellationToken)
         {
             Validate();
-            return _repository.FindOne(predicate, partitionKey, singleResult);
+            return _repository.FindOne(predicate, partitionKey, singleResult, cancellationToken);
         }
 
         public virtual Task<T> Get(Guid id, string partitionKey = null)
+            => Get(id, partitionKey, CancellationToken.None);
+
+        public virtual Task<T> Get(Guid id, string partitionKey, CancellationToken cancellationToken)
         {
             Validate();
-            return _repository.Get(id, partitionKey);
+            return _repository.Get(id, partitionKey, cancellationToken);
         }
 
         public virtual Task<ISearchResult<T>> Get(Expression<Func<T, bool>> predicate, ISearchModel model)
+            => Get(predicate, model, CancellationToken.None);
+
+        public virtual Task<ISearchResult<T>> Get(Expression<Func<T, bool>> predicate, ISearchModel model, CancellationToken cancellationToken)
         {
             Validate();
-            return _repository.Get(predicate, model);
+            return _repository.Get(predicate, model, cancellationToken);
         }
 
         public virtual Task<ISearchResult<T>> Get(string query, ISearchModel model)
+            => Get(query, model, CancellationToken.None);
+
+        public virtual Task<ISearchResult<T>> Get(string query, ISearchModel model, CancellationToken cancellationToken)
         {
             Validate();
-            return _repository.Get(query, model);
+            return _repository.Get(query, model, cancellationToken);
         }
 
         public virtual Task<ISearchResult<T>> GetAll(Expression<Func<T, bool>> predicate, ISearchModel model)
+            => GetAll(predicate, model, CancellationToken.None);
+
+        public virtual Task<ISearchResult<T>> GetAll(Expression<Func<T, bool>> predicate, ISearchModel model, CancellationToken cancellationToken)
         {
             Validate();
-            return _repository.GetAll(predicate, model);
+            return _repository.GetAll(predicate, model, cancellationToken);
         }
 
         public Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey = null)
+            => Count(predicate, partitionKey, CancellationToken.None);
+
+        public Task<int> Count(Expression<Func<T, bool>> predicate, string partitionKey, CancellationToken cancellationToken)
         {
             Validate();
-            return _repository.Count(predicate, partitionKey);
+            return _repository.Count(predicate, partitionKey, cancellationToken);
         }
 
         public IQueryable<T> Query(ISearchModel searchModel)
@@ -225,10 +252,12 @@ namespace SDDev.Net.GenericRepository.Indexing
             return _repository.Query(searchModel);
         }
 
-        public virtual async Task<Guid> Update(T model)
+        public virtual Task<Guid> Update(T model) => Update(model, CancellationToken.None);
+
+        public virtual async Task<Guid> Update(T model, CancellationToken cancellationToken)
         {
             Validate();
-            var result = await _repository.Update(model).ConfigureAwait(false);
+            var result = await _repository.Update(model, cancellationToken).ConfigureAwait(false);
 
             if (model.IsActive == false)
             {
@@ -236,7 +265,7 @@ namespace SDDev.Net.GenericRepository.Indexing
                 {
                     var deleteModel = _mapper.Map<Y>(model);
                     var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
-                    await _searchClient.IndexDocumentsAsync(deleteBatch).ConfigureAwait(false);
+                    await _searchClient.IndexDocumentsAsync(deleteBatch, cancellationToken: cancellationToken).ConfigureAwait(false);
                     return result;
                 }
             }
@@ -248,7 +277,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             var batch = IndexDocumentsBatch.Create(
                 IndexDocumentsAction.MergeOrUpload(indexModel)
             );
-            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            await _searchClient.IndexDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             return result;
 
@@ -390,7 +419,10 @@ namespace SDDev.Net.GenericRepository.Indexing
             return result;
         }
 
-        public async Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection)
+        public Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection)
+            => Patch(id, partitionKey, operationCollection, CancellationToken.None);
+
+        public async Task Patch(Guid id, string partitionKey, IPatchOperationCollection<T> operationCollection, CancellationToken cancellationToken)
         {
             Validate();
             var azureOperations = operationCollection
@@ -403,14 +435,16 @@ namespace SDDev.Net.GenericRepository.Indexing
             }
 
             await Task.WhenAll(
-                _repository.Patch(id, partitionKey, operationCollection),
-                _searchClient.MergeDocumentsAsync([azureOperations]));
+                _repository.Patch(id, partitionKey, operationCollection, cancellationToken),
+                _searchClient.MergeDocumentsAsync([azureOperations], cancellationToken: cancellationToken));
         }
 
-        public virtual async Task<Guid> Upsert(T model)
+        public virtual Task<Guid> Upsert(T model) => Upsert(model, CancellationToken.None);
+
+        public virtual async Task<Guid> Upsert(T model, CancellationToken cancellationToken)
         {
             Validate();
-            var result = await _repository.Upsert(model);
+            var result = await _repository.Upsert(model, cancellationToken);
 
             if (model.IsActive == false)
             {
@@ -418,7 +452,7 @@ namespace SDDev.Net.GenericRepository.Indexing
                 {
                     var deleteModel = _mapper.Map<Y>(model);
                     var deleteBatch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(deleteModel));
-                    await _searchClient.IndexDocumentsAsync(deleteBatch).ConfigureAwait(false);
+                    await _searchClient.IndexDocumentsAsync(deleteBatch, cancellationToken: cancellationToken).ConfigureAwait(false);
                     return result;
                 }
             }
@@ -430,7 +464,7 @@ namespace SDDev.Net.GenericRepository.Indexing
             var batch = IndexDocumentsBatch.Create(
                 IndexDocumentsAction.MergeOrUpload(indexModel)
             );
-            await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
+            await _searchClient.IndexDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             return result;
         }

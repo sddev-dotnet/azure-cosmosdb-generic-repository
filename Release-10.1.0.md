@@ -15,7 +15,7 @@ merged so far.
 
 ## Features
 
-### CancellationToken support (in progress)
+### CancellationToken support
 
 `IRepository<T>` now exposes a `CancellationToken` overload for every asynchronous IO method:
 
@@ -34,12 +34,11 @@ Design notes:
 - The `CancellationToken` parameter is **required** (no default value) on the new overloads, so they
   never collide with the existing tokenless members during overload resolution — existing call sites
   are unaffected.
-- **Threaded so far:** the point operations on `GenericRepository<T>` — `Get(id)`, `Create`, `Update`,
-  `Upsert`, `Delete` (both overloads), `Patch`, and `Count` — pass the token into the Cosmos SDK.
-- **Still best-effort (token accepted but not yet observed), planned for a follow-up commit:** the
-  query methods (`Get(predicate)`, `Get(query)`, `GetAll`, `FindOne`) and the `CachedRepository` /
-  `IndexedRepository` decorators. These return correct results today; the token is simply not yet
-  propagated on those paths.
+- The token is threaded into the Cosmos SDK across **all** repositories — `GenericRepository<T>`
+  (point operations *and* query methods: `Get(predicate)`, `Get(query)`, `GetAll`, `FindOne`) and
+  `HierarchicalPartitionedRepository<T>` — as well as into the Azure Search and `IDistributedCache`
+  calls of the `IndexedRepository` and `CachedRepository` decorators. A test verifies that a decorator
+  forwards the caller's actual token to the inner repository.
 
 ## Still planned for 10.1.0
 
