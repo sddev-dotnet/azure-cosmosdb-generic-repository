@@ -5,18 +5,27 @@ on:
   pull_request:
     branches:
       - master
+name: CI
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v2
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "7.x"
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore SDDev.Net.GenericRepository.sln
 
       - name: Build
-        run: dotnet build --configuration Release
+        run: dotnet build SDDev.Net.GenericRepository.sln --configuration Release --no-restore
+
+      # Runs the unit tests only. Integration tests (TestCategory=INTEGRATION) require a live
+      # Cosmos DB / Azure Cognitive Search account and are excluded from CI.
+      - name: Test (unit)
+        run: dotnet test SDDev.Net.GenericRepository.sln --configuration Release --no-build --filter "TestCategory!=INTEGRATION"

@@ -12,7 +12,7 @@ internal class MockFeedIterator<TEntity> : FeedIterator<TEntity>
     private readonly Queue<IReadOnlyList<TEntity>> _pages;
 
 
-    public MockFeedIterator(IQueryable<TEntity> queryable, int pageSize)
+    public MockFeedIterator(IQueryable<TEntity> queryable, int pageSize, bool prependEmptyPage = false)
     {
         var data = queryable.ToList();
 
@@ -22,6 +22,11 @@ internal class MockFeedIterator<TEntity> : FeedIterator<TEntity>
             .GroupBy(x => x.index / pageSize)
             .Select(g => g.Select(x => x.item).ToList())
             .ToList();
+
+        // Simulate Cosmos returning an empty leading page (a real behavior when a page's items are
+        // all filtered out server-side) so paging logic that reads only the first page is exposed.
+        if (prependEmptyPage)
+            pages.Insert(0, new List<TEntity>());
 
         _pages = new Queue<IReadOnlyList<TEntity>>(pages);
     }

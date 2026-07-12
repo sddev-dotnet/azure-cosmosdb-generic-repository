@@ -21,6 +21,7 @@ using System.Threading.Tasks;
 namespace SDDev.Net.GenericRepository.Tests
 {
     [TestClass]
+    [TestCategory("INTEGRATION")]
     public class GenericRepositoryTests
     {
         private static IConfiguration _config;

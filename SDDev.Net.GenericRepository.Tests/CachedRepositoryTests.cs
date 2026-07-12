@@ -24,6 +24,7 @@ using FluentAssertions;
 namespace SDDev.Net.GenericRepository.Tests
 {
     [TestClass]
+    [TestCategory("INTEGRATION")]
     public class CachedRepositoryTests
     {
         private static IConfiguration _config;

@@ -28,11 +28,6 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// </summary>
         protected virtual IList<string> PartitionKeys { get; set; }
 
-        /// <summary>
-        /// The connection to the Azure DocumentDB. This should be injected and configured in the Autofac Config class.
-        /// </summary>
-        public Container Client { get; set; }
-
         public HierarchicalPartitionedRepository(
             CosmosClient client,
             ILogger<HierarchicalPartitionedRepository<TModel>> log,
@@ -59,7 +54,8 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 CollectionName = collectionName ?? typeof(TModel).Name;
             }
 
-            Client = client.GetContainer(DatabaseName, CollectionName);
+            // Client is already resolved by the base constructor (BaseRepository) to the same
+            // database/collection; no separate derived Client is needed.
         }
 
         /*******************************************************************************************
@@ -84,7 +80,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
             catch (Exception e)
             {
-                Log.LogError($"There was a problem with the GET operation for object {typeof(TModel).Name}", e);
+                Log.LogError(e, "There was a problem with the GET operation for object {ModelName}", typeof(TModel).Name);
                 throw;
             }
         }
@@ -113,7 +109,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
             catch (Exception ex)
             {
-                Log.LogError("Problem creating document.", ex);
+                Log.LogError(ex, "Problem creating document.");
                 throw;
             }
         }
@@ -138,11 +134,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 MaxItemCount = 2,
                 PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
             };
-            var partitionKeyQuery = $"{PartitionKeys.First()}=\"{partitionKey}\"";
             var query = Client
                         .GetItemLinqQueryable<TModel>(requestOptions: queryOptions, allowSynchronousQueryExecution: true)
                         .Where(x => x.Id == id)
-                        .Where(partitionKeyQuery)
+                        .Where($"{PartitionKeys.First()} == @0", partitionKey) // parameterized to avoid quote breakage/injection
                         .AsQueryable();
             var items = new List<TModel>();
             var iterator = query.ToFeedIterator();
@@ -201,11 +196,15 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
             };
 
-            if (!string.IsNullOrEmpty(model.ContinuationToken))
+            if (!string.IsNullOrWhiteSpace(model.ContinuationToken))
             {
                 var decoded = Convert.FromBase64String(model.ContinuationToken);
                 var token = System.Text.Encoding.UTF8.GetString(decoded);
-                model.ContinuationToken = token;
+                model.ContinuationToken = string.IsNullOrWhiteSpace(token) ? null : token;
+            }
+            else
+            {
+                model.ContinuationToken = null;
             }
 
             var q = Client
@@ -224,11 +223,15 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 PopulateIndexMetrics = Configuration.PopulateIndexMetrics,
             };
             
-            if (!string.IsNullOrEmpty(model.ContinuationToken))
+            if (!string.IsNullOrWhiteSpace(model.ContinuationToken))
             {
                 var decoded = Convert.FromBase64String(model.ContinuationToken);
                 var token = System.Text.Encoding.UTF8.GetString(decoded);
-                model.ContinuationToken = token;
+                model.ContinuationToken = string.IsNullOrWhiteSpace(token) ? null : token;
+            }
+            else
+            {
+                model.ContinuationToken = null;
             }
 
             var query = Client
@@ -298,7 +301,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 }
             }
 
-            response.ContinuationToken = !string.IsNullOrEmpty(continuation) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(continuation)) : "";
+            response.ContinuationToken = !string.IsNullOrWhiteSpace(continuation) ? Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(continuation)) : null;
 
             return response;
         }

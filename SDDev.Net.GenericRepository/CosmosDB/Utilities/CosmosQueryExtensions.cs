@@ -12,11 +12,18 @@ public static class CosmosQueryExtensions
     private static ILogger _logger;
     private static IOptions<CosmosDbConfiguration> _configuration;
 
-    public static void InitializeDependenices(ILogger logger, IOptions<CosmosDbConfiguration> configuration)
+    public static void InitializeDependencies(ILogger logger, IOptions<CosmosDbConfiguration> configuration)
     {
         _logger = logger;
         _configuration = configuration;
     }
+
+    /// <summary>
+    /// Deprecated misspelling of <see cref="InitializeDependencies"/>, retained for backward
+    /// compatibility. Prefer <see cref="InitializeDependencies"/>.
+    /// </summary>
+    public static void InitializeDependenices(ILogger logger, IOptions<CosmosDbConfiguration> configuration)
+        => InitializeDependencies(logger, configuration);
 
     internal static IFeedIteratorProvider FeedIteratorProvider { get; set; } = new CosmosFeedIteratorProvider();
 
@@ -74,13 +81,29 @@ public static class CosmosQueryExtensions
 
         var iterator = FeedIteratorProvider.CreateIterator(queryable);
 
-        var response = await iterator.ReadNextAsync();
+        // Iterate pages until the first item is found; a leading empty page must not short-circuit
+        // the whole query to default.
+        var charge = 0D;
+        TEntity result = default;
+        var found = false;
+        while (iterator.HasMoreResults && !found)
+        {
+            var response = await iterator.ReadNextAsync();
+            charge += response.RequestCharge;
 
-        LogResponseDetails(response);
+            LogResponseDetails(response);
 
-        LogRequestCharge(response.RequestCharge, queryText);
+            foreach (var item in response)
+            {
+                result = item;
+                found = true;
+                break;
+            }
+        }
 
-        return response.FirstOrDefault();
+        LogRequestCharge(charge, queryText);
+
+        return result;
     }
 
     public static async Task<TEntity> SingleOrDefaultAsync<TEntity>(this IQueryable<TEntity> queryable)
@@ -89,13 +112,27 @@ public static class CosmosQueryExtensions
 
         var iterator = FeedIteratorProvider.CreateIterator(queryable);
 
-        var response = await iterator.ReadNextAsync();
+        // Read until we have collected two items (enough to assert non-uniqueness) or pages are
+        // exhausted; matches Enumerable.SingleOrDefault semantics across page boundaries.
+        var charge = 0D;
+        var items = new List<TEntity>(2);
+        while (iterator.HasMoreResults && items.Count < 2)
+        {
+            var response = await iterator.ReadNextAsync();
+            charge += response.RequestCharge;
 
-        LogResponseDetails(response);
+            LogResponseDetails(response);
 
-        LogRequestCharge(response.RequestCharge, queryText);
+            foreach (var item in response)
+            {
+                items.Add(item);
+                if (items.Count >= 2) break;
+            }
+        }
 
-        return response.SingleOrDefault();
+        LogRequestCharge(charge, queryText);
+
+        return items.SingleOrDefault();
     }
 
     private static void LogResponseDetails<TEntity>(FeedResponse<TEntity> response)

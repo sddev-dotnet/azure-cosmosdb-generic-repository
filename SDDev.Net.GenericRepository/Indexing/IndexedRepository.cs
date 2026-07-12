@@ -158,8 +158,13 @@ namespace SDDev.Net.GenericRepository.Indexing
             Validate();
             var entity = await _repository.Get(id, partitionKey);
 
-            await _repository.Delete(entity, force).ConfigureAwait(false);
+            if (entity == null)
+            {
+                _logger.LogWarning("Item with Id {Id} not found for partition key {PartitionKey}; nothing to delete.", id, partitionKey);
+                return;
+            }
 
+            await _repository.Delete(entity, force).ConfigureAwait(false);
 
             var indexModel = _mapper.Map<Y>(entity);
             var batch = IndexDocumentsBatch.Create(IndexDocumentsAction.Delete(indexModel));
@@ -271,16 +276,13 @@ namespace SDDev.Net.GenericRepository.Indexing
             await _searchClient.IndexDocumentsAsync(batch).ConfigureAwait(false);
         }
 
-        public Task UpdateIndex(Guid id, string partitionKey)
+        public async Task UpdateIndex(Guid id, string partitionKey)
         {
-            return Get(id, partitionKey).ContinueWith(async x =>
+            var entity = await Get(id, partitionKey).ConfigureAwait(false);
+            if (entity != null)
             {
-                var entity = await x;
-                if (entity != null)
-                {
-                    await UpdateIndex(entity).ConfigureAwait(false);
-                }
-            });
+                await UpdateIndex(entity).ConfigureAwait(false);
+            }
         }
 
         /// <summary>
@@ -298,9 +300,14 @@ namespace SDDev.Net.GenericRepository.Indexing
                 throw new System.InvalidOperationException("maxDegreeOfParallelism must be a positive value.");
             }
 
-            var groups = entities.Partition(900); // Azure Search has a limit of 1000 documents per batch, leave a little space for margin of error
+            if (groupSize > 1000)
+            {
+                throw new ArgumentException("Group Size must be less than 1000 for Azure Search.");
+            }
 
-            Parallel.ForEach(groups, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async group =>
+            var groups = entities.Partition(groupSize); // Azure Search has a limit of 1000 documents per batch, leave a little space for margin of error
+
+            await Parallel.ForEachAsync(groups, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async (group, ct) =>
             {
 
                 var tasks = new List<Task<Y>>();
@@ -350,7 +357,7 @@ namespace SDDev.Net.GenericRepository.Indexing
                     _logger.LogError(ex, "Failed to update index for batch");
                     throw;
                 }
-            });
+            }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -484,19 +491,12 @@ namespace SDDev.Net.GenericRepository.Indexing
         {
             var indexModel = _mapper.Map<Y>(model);
 
-            if (AfterMapping != null || AfterMappingAsync != null)
-            {
-                if (AfterMapping != null)
-                {
-                    AfterMapping(indexModel, model); // allow the user to define additional mapping 
-                    return indexModel;
-                }
+            // Run the synchronous hook first, then the async hook, so both fire when both are subscribed.
+            AfterMapping?.Invoke(indexModel, model);
 
-                if (AfterMappingAsync != null)
-                {
-                    await AfterMappingAsync(indexModel, model).ConfigureAwait(false);
-                    return indexModel;
-                }
+            if (AfterMappingAsync != null)
+            {
+                await AfterMappingAsync(indexModel, model).ConfigureAwait(false);
             }
 
             return indexModel;
@@ -518,7 +518,7 @@ namespace SDDev.Net.GenericRepository.Indexing
 
             var groups = models.Partition(groupSize);
 
-            Parallel.ForEach(groups, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async group =>
+            await Parallel.ForEachAsync(groups, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async (group, ct) =>
             {
 
                 var tasks = new List<Task<Y>>();
@@ -546,7 +546,7 @@ namespace SDDev.Net.GenericRepository.Indexing
                     _logger.LogError(ex, "Failed to update index for batch");
                     throw;
                 }
-            });
+            }).ConfigureAwait(false);
         }
 
         public async Task UpdateIndex(Y model)
