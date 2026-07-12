@@ -14,6 +14,7 @@ using System.Linq;
 using System.Linq.Dynamic.Core;
 using System.Linq.Expressions;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using PartitionKey = Microsoft.Azure.Cosmos.PartitionKey;
 
@@ -25,14 +26,17 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 	/// <typeparam name="TModel"></typeparam>
 	public class GenericRepository<TModel> : BaseRepository<TModel> where TModel : class, IStorableEntity
     {
-        public override async Task<TModel> Get(Guid id, string partitionKey = null)
+        public override Task<TModel> Get(Guid id, string partitionKey = null)
+            => Get(id, partitionKey, CancellationToken.None);
+
+        public virtual async Task<TModel> Get(Guid id, string partitionKey, CancellationToken cancellationToken)
         {
             try
             {
                 if (string.IsNullOrEmpty(partitionKey))
                     return await FindOne(x => x.Id == id).ConfigureAwait(false);
 
-                var resp = await Client.ReadItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey));
+                var resp = await Client.ReadItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey), cancellationToken: cancellationToken);
                 Log.LogDebug($"CosmosDb query. RU cost:{resp.RequestCharge}");
 
                 return resp;
@@ -258,7 +262,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             return response;
         }
 
-        public async override Task<int> Count(Expression<Func<TModel, bool>> predicate, string partitionKey = null)
+        public override Task<int> Count(Expression<Func<TModel, bool>> predicate, string partitionKey = null)
+            => Count(predicate, partitionKey, CancellationToken.None);
+
+        public virtual async Task<int> Count(Expression<Func<TModel, bool>> predicate, string partitionKey, CancellationToken cancellationToken)
         {
             var queryOptions = new QueryRequestOptions();
 
@@ -273,7 +280,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 .Where(predicate)
                 .Select(x => x.Id);
 
-            var count = await query.CountAsync();
+            var count = await query.CountAsync(cancellationToken);
 
             return count;
         }
@@ -319,7 +326,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <param name="model"></param>
         /// <deprecated>Use either Create or Update purposefully</deprecated>
         /// <returns></returns>
-        public async override Task<Guid> Upsert(TModel model)
+        public override Task<Guid> Upsert(TModel model)
+            => Upsert(model, CancellationToken.None);
+
+        public virtual async Task<Guid> Upsert(TModel model, CancellationToken cancellationToken)
         {
             try
             {
@@ -333,7 +343,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
                 }
 
-                var resp = await Client.UpsertItemAsync<TModel>(model);
+                var resp = await Client.UpsertItemAsync<TModel>(model, cancellationToken: cancellationToken);
                 Log.LogDebug($"CosmosDb upsert. RU cost:{resp.RequestCharge}");
                 return model.Id.Value;
             }
@@ -344,7 +354,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
-        public override async Task Delete(Guid id, string partitionKey, bool force = false)
+        public override Task Delete(Guid id, string partitionKey, bool force = false)
+            => Delete(id, partitionKey, force, CancellationToken.None);
+
+        public virtual async Task Delete(Guid id, string partitionKey, bool force, CancellationToken cancellationToken)
         {
 
             Log.LogInformation($"Deleting document {id} from Database {DatabaseName} Collection {CollectionName}");
@@ -352,7 +365,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             if (!force)
             {
-                var item = await Get(id, partitionKey);
+                var item = await Get(id, partitionKey, cancellationToken);
                 if (item == null)
                 {
                     Log.LogWarning($"Item with Id {id} could not be found. It must already be deleted or the incorrect partition key was supplied.");
@@ -362,7 +375,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 item.TimeToLive = Configuration.DeleteTTL; // set the ttl so it gets deleted after a configured amount of time by the db engine
                 Log.LogInformation($"Force Delete false, setting TTL to {Configuration.DeleteTTL}");
 
-                var resp = await Client.UpsertItemAsync(item);
+                var resp = await Client.UpsertItemAsync(item, cancellationToken: cancellationToken);
                 Log.LogDebug($"CosmosDb point read delete. RU cost:{resp.RequestCharge}");
             }
             else
@@ -370,7 +383,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 Log.LogInformation("Force Delete was true. Automated Indexing operations will not be performed for this action.");
                 try
                 {
-                    await Client.DeleteItemAsync<TModel>(id.ToString(), new Microsoft.Azure.Cosmos.PartitionKey(partitionKey));
+                    await Client.DeleteItemAsync<TModel>(id.ToString(), new Microsoft.Azure.Cosmos.PartitionKey(partitionKey), cancellationToken: cancellationToken);
                 }
                 catch (CosmosException e)
                 {
@@ -382,7 +395,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
 
         }
-        public override async Task Delete(TModel model, bool force = false)
+        public override Task Delete(TModel model, bool force = false)
+            => Delete(model, force, CancellationToken.None);
+
+        public virtual async Task Delete(TModel model, bool force, CancellationToken cancellationToken)
         {
             if (!force)
             {
@@ -396,7 +412,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 model.TimeToLive = Configuration.DeleteTTL; // set the ttl so it gets deleted after a configured amount of time by the db engine
                 Log.LogInformation($"Force Delete false, setting TTL to {Configuration.DeleteTTL}");
 
-                var resp = await Client.UpsertItemAsync(model);
+                var resp = await Client.UpsertItemAsync(model, cancellationToken: cancellationToken);
                 Log.LogDebug($"CosmosDb query delete. RU cost:{resp.RequestCharge}");
 
             }
@@ -405,7 +421,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 Log.LogInformation("Force Delete was true. Automated Indexing operations will not be performed for this action.");
                 try
                 {
-                    await Client.DeleteItemAsync<TModel>(model.Id.ToString(), GetPartitionKey(model));
+                    await Client.DeleteItemAsync<TModel>(model.Id.ToString(), GetPartitionKey(model), cancellationToken: cancellationToken);
                 }
                 catch (CosmosException e)
                 {
@@ -415,7 +431,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
-        public override async Task<Guid> Create(TModel model)
+        public override Task<Guid> Create(TModel model)
+            => Create(model, CancellationToken.None);
+
+        public virtual async Task<Guid> Create(TModel model, CancellationToken cancellationToken)
         {
             if (!model.Id.HasValue)
                 model.Id = Guid.NewGuid(); // always set the ID on create
@@ -434,7 +453,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             try
             {
-                var resp = await Client.CreateItemAsync<TModel>(model);
+                var resp = await Client.CreateItemAsync<TModel>(model, cancellationToken: cancellationToken);
                 Log.LogDebug($"CosmosDb create. RU cost:{resp.RequestCharge}");
                 return model.Id.Value;
             }
@@ -445,7 +464,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
-        public override async Task<Guid> Update(TModel model)
+        public override Task<Guid> Update(TModel model)
+            => Update(model, CancellationToken.None);
+
+        public virtual async Task<Guid> Update(TModel model, CancellationToken cancellationToken)
         {
             try
             {
@@ -456,7 +478,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                     auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
                 }
 
-                var resp = await Client.ReplaceItemAsync(model, model.Id.ToString());
+                var resp = await Client.ReplaceItemAsync(model, model.Id.ToString(), cancellationToken: cancellationToken);
                 Log.LogDebug($"CosmosDb update. RU cost:{resp.RequestCharge}");
 
                 return model.Id.Value;
@@ -468,7 +490,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
-        public override async Task Patch(Guid id, string partitionKey, IPatchOperationCollection<TModel> operationCollection)
+        public override Task Patch(Guid id, string partitionKey, IPatchOperationCollection<TModel> operationCollection)
+            => Patch(id, partitionKey, operationCollection, CancellationToken.None);
+
+        public virtual async Task Patch(Guid id, string partitionKey, IPatchOperationCollection<TModel> operationCollection, CancellationToken cancellationToken)
         {
             var isAuditableEntity = typeof(IAuditableEntity).IsAssignableFrom(typeof(TModel));
             var modifiedDatePath = $"/{nameof(IAuditableEntity.AuditMetadata)}/{nameof(IAuditableEntity.AuditMetadata.ModifiedDateTime)}";
@@ -483,7 +508,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 .Select(x => x.ToOperation<PatchOperation>())
                 .ToList();
 
-            var response = await Client.PatchItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey), cosmosOperations);
+            var response = await Client.PatchItemAsync<TModel>(id.ToString(), new PartitionKey(partitionKey), cosmosOperations, cancellationToken: cancellationToken);
 
             Log.LogDebug($"CosmosDB patch RU cost: {response.RequestCharge}");
         }

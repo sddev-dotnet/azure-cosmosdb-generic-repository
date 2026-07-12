@@ -16,6 +16,7 @@ using System.Linq.Expressions;
 using System.Net;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SDDev.Net.GenericRepository.CosmosDB
@@ -124,6 +125,12 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         /// <param name="id"></param>
         /// <param name="partitionKey"></param>
         /// <returns></returns>
+        // The hierarchical point-read differs from the base single-key read, so override the token
+        // overload to route to this repository's own logic. (Token threading into the feed iterator
+        // is a follow-up; results are correct today.)
+        public override Task<TModel> Get(Guid id, string partitionKey, CancellationToken cancellationToken)
+            => Get(id, partitionKey);
+
         public override async Task<TModel> Get(Guid id, string partitionKey = null)
         {
             if (string.IsNullOrEmpty(partitionKey))
@@ -159,6 +166,10 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             return resp;
         }
 
+
+        // Route the token overload to this repository's hierarchical delete logic (see Get above).
+        public override Task Delete(Guid id, string partitionKey, bool force, CancellationToken cancellationToken)
+            => Delete(id, partitionKey, force);
 
         public override async Task Delete(Guid id, string partitionKey, bool force = false)
         {
