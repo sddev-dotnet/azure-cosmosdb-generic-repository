@@ -328,11 +328,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
                 if (!model.Id.HasValue)
                     model.Id = Guid.NewGuid();
 
-                if (model is IAuditableEntity)
-                {
-                    var auditable = model as IAuditableEntity;
-                    auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
-                }
+                ApplyAuditMetadata(model, isCreate: false);
 
                 var resp = await Client.UpsertItemAsync<TModel>(model);
                 Log.LogDebug($"CosmosDb upsert. RU cost:{resp.RequestCharge}");
@@ -416,6 +412,41 @@ namespace SDDev.Net.GenericRepository.CosmosDB
             }
         }
 
+        /// <summary>
+        /// Stamps the audit timestamps on <paramref name="model"/>, creating the
+        /// <see cref="AuditMetadata"/> container first if the model does not have one.
+        /// </summary>
+        /// <remarks>
+        /// The null check used to live only in <see cref="Create"/>; <see cref="Update"/> and
+        /// <see cref="Upsert"/> dereferenced <c>AuditMetadata</c> directly and threw a
+        /// <see cref="NullReferenceException"/> for any model that reached them without one.
+        /// <see cref="BaseAuditableEntity"/> initialises the property, so this only bites models
+        /// deserialised from a document carrying an explicit <c>"AuditMetadata": null</c> — but
+        /// <see cref="Create"/> already treated that as reachable, and the three call sites had
+        /// no reason to disagree. Sharing one implementation keeps them from drifting again.
+        ///
+        /// <para>
+        /// <c>CreatedDateTime</c> is assigned unconditionally on create, overwriting any
+        /// caller-supplied value. That is the pre-existing behaviour and is deliberately
+        /// preserved here so this change stays a pure consistency fix.
+        /// </para>
+        /// </remarks>
+        private static void ApplyAuditMetadata(TModel model, bool isCreate)
+        {
+            if (model is not IAuditableEntity auditable)
+                return;
+
+            if (auditable.AuditMetadata == null)
+                auditable.AuditMetadata = new AuditMetadata();
+
+            var timestamp = DateTime.UtcNow;
+
+            if (isCreate)
+                auditable.AuditMetadata.CreatedDateTime = timestamp;
+
+            auditable.AuditMetadata.ModifiedDateTime = timestamp;
+        }
+
         public override async Task<Guid> Create(TModel model)
         {
             if (!model.Id.HasValue)
@@ -423,15 +454,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
 
             Log.LogDebug($"Creating Object type {typeof(TModel).Name} with ID {model.Id}");
 
-            if (model is IAuditableEntity)
-            {
-                var auditable = (IAuditableEntity)model;
-                if (auditable.AuditMetadata == null)
-                    auditable.AuditMetadata = new AuditMetadata();
-
-                ((IAuditableEntity)model).AuditMetadata.CreatedDateTime = DateTime.UtcNow;
-                ((IAuditableEntity)model).AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
-            }
+            ApplyAuditMetadata(model, isCreate: true);
 
             try
             {
@@ -450,11 +473,7 @@ namespace SDDev.Net.GenericRepository.CosmosDB
         {
             try
             {
-                if (model is IAuditableEntity)
-                {
-                    var auditable = model as IAuditableEntity;
-                    auditable.AuditMetadata.ModifiedDateTime = DateTime.UtcNow;
-                }
+                ApplyAuditMetadata(model, isCreate: false);
 
                 var resp = await Client.ReplaceItemAsync(model, model.Id.ToString());
                 Log.LogDebug($"CosmosDb update. RU cost:{resp.RequestCharge}");
